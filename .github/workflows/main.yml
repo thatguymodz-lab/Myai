@@ -39,7 +39,7 @@ jobs:
         run: |
           set -e
 
-          echo "Restoring the last confirmed working Jarvis V2 source..."
+          echo "Restoring confirmed working Jarvis V2 source..."
 
           git show ad4e9d78633532454058da7cc851b3fe5c489e2b:.github/workflows/main.yml > /tmp/working-main.yml
 
@@ -66,25 +66,16 @@ jobs:
 
           chmod +x /tmp/generate-jarvis.sh
 
-          echo "Generating Jarvis Android project..."
-
           /tmp/generate-jarvis.sh
 
           echo "Jarvis V2 source restored."
 
-      - name: Improve Model Download URL
+      - name: Fix Model URL
         shell: bash
         run: |
           set -e
 
-          FILE="app/src/main/java/com/novajarvis/android/MainActivity.kt"
-
-          if [ ! -f "$FILE" ]; then
-            echo "MainActivity.kt was not generated."
-            exit 1
-          fi
-
-          python3 -c '
+          python3 <<'PY'
           from pathlib import Path
 
           path = Path(
@@ -93,29 +84,625 @@ jobs:
 
           text = path.read_text()
 
-          old = (
-              "https://huggingface.co/"
-              "Qwen/Qwen2.5-0.5B-Instruct-GGUF/"
-              "resolve/main/"
-              "qwen2.5-0.5b-instruct-q4_k_m.gguf"
-              "?download=true"
+          text = text.replace(
+              "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf?download=true",
+              "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf"
           )
-
-          new = (
-              "https://huggingface.co/"
-              "Qwen/Qwen2.5-0.5B-Instruct-GGUF/"
-              "resolve/main/"
-              "qwen2.5-0.5b-instruct-q4_k_m.gguf"
-          )
-
-          if old in text:
-              text = text.replace(old, new)
-              print("Model URL updated.")
-          else:
-              print("Model URL already updated or not found.")
 
           path.write_text(text)
-          '
+
+          print("Jarvis model URL ready.")
+          PY
+
+      - name: Add Resumable Model Downloader
+        shell: bash
+        run: |
+          set -e
+
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              "app/src/main/java/com/novajarvis/android/MainActivity.kt"
+          )
+
+          text = path.read_text()
+
+          start_marker = (
+              "              private fun downloadModel() {"
+          )
+
+          end_marker = (
+              "              private fun startVoice() {"
+          )
+
+          start = text.index(start_marker)
+          end = text.index(end_marker, start)
+
+          downloader = r'''              private fun downloadModel() {
+
+                  status.text =
+                      "PREPARING MODEL DOWNLOAD…"
+
+                  lifecycleScope.launch(
+                      Dispatchers.IO
+                  ) {
+
+                      modelFile
+                          .parentFile
+                          ?.mkdirs()
+
+                      val temporary =
+                          File(
+                              modelFile.parentFile,
+                              "jarvis.tmp"
+                          )
+
+                      var attempt =
+                          0
+
+                      val maxAttempts =
+                          8
+
+                      try {
+
+                          while (
+                              attempt <
+                              maxAttempts
+                          ) {
+
+                              attempt++
+
+                              val alreadyDownloaded =
+                                  if (
+                                      temporary.exists()
+                                  ) {
+                                      temporary.length()
+                                  } else {
+                                      0L
+                                  }
+
+                              var connection:
+                                  HttpURLConnection? =
+                                  null
+
+                              try {
+
+                                  var currentUrl =
+                                      URL(modelUrl)
+
+                                  var redirects =
+                                      0
+
+                                  while (true) {
+
+                                      connection =
+                                          currentUrl
+                                              .openConnection()
+                                              as HttpURLConnection
+
+                                      connection
+                                          .instanceFollowRedirects =
+                                          false
+
+                                      connection
+                                          .connectTimeout =
+                                          30000
+
+                                      connection
+                                          .readTimeout =
+                                          120000
+
+                                      connection
+                                          .requestMethod =
+                                          "GET"
+
+                                      connection
+                                          .setRequestProperty(
+                                              "User-Agent",
+                                              "Jarvis-Android/2.0"
+                                          )
+
+                                      connection
+                                          .setRequestProperty(
+                                              "Accept",
+                                              "application/octet-stream"
+                                          )
+
+                                      if (
+                                          alreadyDownloaded >
+                                          0L
+                                      ) {
+
+                                          connection
+                                              .setRequestProperty(
+                                                  "Range",
+                                                  "bytes=$alreadyDownloaded-"
+                                              )
+                                      }
+
+                                      connection
+                                          .connect()
+
+                                      val response =
+                                          connection
+                                              .responseCode
+
+                                      if (
+                                          response == 301 ||
+                                          response == 302 ||
+                                          response == 303 ||
+                                          response == 307 ||
+                                          response == 308
+                                      ) {
+
+                                          val location =
+                                              connection
+                                                  .getHeaderField(
+                                                      "Location"
+                                                  )
+                                                  ?: throw Exception(
+                                                      "Redirect had no destination."
+                                                  )
+
+                                          connection
+                                              .disconnect()
+
+                                          connection =
+                                              null
+
+                                          currentUrl =
+                                              URL(
+                                                  currentUrl,
+                                                  location
+                                              )
+
+                                          redirects++
+
+                                          if (
+                                              redirects >
+                                              10
+                                          ) {
+
+                                              throw Exception(
+                                                  "Too many redirects."
+                                              )
+                                          }
+
+                                          continue
+                                      }
+
+                                      if (
+                                          response !in
+                                          200..299
+                                      ) {
+
+                                          throw Exception(
+                                              "HTTP $response"
+                                          )
+                                      }
+
+                                      break
+                                  }
+
+                                  val response =
+                                      connection
+                                          .responseCode
+
+                                  val resume =
+                                      alreadyDownloaded >
+                                          0L &&
+                                      response ==
+                                          HttpURLConnection
+                                              .HTTP_PARTIAL
+
+                                  val startingBytes =
+                                      if (resume) {
+                                          alreadyDownloaded
+                                      } else {
+                                          0L
+                                      }
+
+                                  if (
+                                      !resume &&
+                                      temporary.exists()
+                                  ) {
+
+                                      temporary.delete()
+                                  }
+
+                                  val remainingLength =
+                                      connection
+                                          .contentLengthLong
+
+                                  val expectedTotal =
+                                      if (
+                                          remainingLength >
+                                          0L
+                                      ) {
+
+                                          startingBytes +
+                                              remainingLength
+
+                                      } else {
+
+                                          -1L
+                                      }
+
+                                  temporary
+                                      .outputStream(
+                                          resume
+                                      )
+                                      .buffered()
+                                      .use {
+                                          output ->
+
+                                          connection
+                                              .inputStream
+                                              .buffered()
+                                              .use {
+                                                  inputStream ->
+
+                                                  val buffer =
+                                                      ByteArray(
+                                                          256 *
+                                                          1024
+                                                      )
+
+                                                  var downloaded =
+                                                      startingBytes
+
+                                                  var lastPercent =
+                                                      -1
+
+                                                  while (
+                                                      true
+                                                  ) {
+
+                                                      val count =
+                                                          inputStream
+                                                              .read(
+                                                                  buffer
+                                                              )
+
+                                                      if (
+                                                          count ==
+                                                          -1
+                                                      ) {
+                                                          break
+                                                      }
+
+                                                      output
+                                                          .write(
+                                                              buffer,
+                                                              0,
+                                                              count
+                                                          )
+
+                                                      downloaded +=
+                                                          count
+
+                                                      val percent =
+                                                          if (
+                                                              expectedTotal >
+                                                              0L
+                                                          ) {
+
+                                                              (
+                                                                  downloaded *
+                                                                  100L /
+                                                                  expectedTotal
+                                                              )
+                                                                  .toInt()
+                                                                  .coerceIn(
+                                                                      0,
+                                                                      100
+                                                                  )
+
+                                                          } else {
+
+                                                              -1
+                                                          }
+
+                                                      if (
+                                                          percent !=
+                                                          lastPercent
+                                                      ) {
+
+                                                          lastPercent =
+                                                              percent
+
+                                                          val downloadedMb =
+                                                              downloaded /
+                                                                  1024 /
+                                                                  1024
+
+                                                          val totalMb =
+                                                              if (
+                                                                  expectedTotal >
+                                                                  0L
+                                                              ) {
+
+                                                                  expectedTotal /
+                                                                      1024 /
+                                                                      1024
+
+                                                              } else {
+
+                                                                  0L
+                                                              }
+
+                                                          runOnUiThread {
+
+                                                              status.text =
+                                                                  if (
+                                                                      percent >=
+                                                                      0
+                                                                  ) {
+
+                                                                      "DOWNLOADING • " +
+                                                                          percent +
+                                                                          "% • " +
+                                                                          downloadedMb +
+                                                                          " / " +
+                                                                          totalMb +
+                                                                          " MB"
+
+                                                                  } else {
+
+                                                                      "DOWNLOADING • " +
+                                                                          downloadedMb +
+                                                                          " MB"
+                                                                  }
+                                                          }
+                                                      }
+                                                  }
+
+                                                  output.flush()
+                                              }
+                                      }
+
+                                  connection
+                                      .disconnect()
+
+                                  connection =
+                                      null
+
+                                  if (
+                                      expectedTotal >
+                                      0L &&
+                                      temporary.length() <
+                                      expectedTotal
+                                  ) {
+
+                                      throw Exception(
+                                          "Connection ended early at " +
+                                              (
+                                                  temporary.length() /
+                                                  1024 /
+                                                  1024
+                                              ) +
+                                              " MB."
+                                      )
+                                  }
+
+                                  if (
+                                      temporary.length() <
+                                      50L *
+                                      1024 *
+                                      1024
+                                  ) {
+
+                                      throw Exception(
+                                          "Downloaded model is incomplete."
+                                      )
+                                  }
+
+                                  val header =
+                                      ByteArray(4)
+
+                                  temporary
+                                      .inputStream()
+                                      .use {
+                                          stream ->
+
+                                          if (
+                                              stream.read(
+                                                  header
+                                              ) != 4
+                                          ) {
+
+                                              throw Exception(
+                                                  "Could not verify model."
+                                              )
+                                          }
+                                      }
+
+                                  val validGguf =
+                                      header[0]
+                                          .toInt()
+                                          .toChar() ==
+                                          'G' &&
+                                      header[1]
+                                          .toInt()
+                                          .toChar() ==
+                                          'G' &&
+                                      header[2]
+                                          .toInt()
+                                          .toChar() ==
+                                          'U' &&
+                                      header[3]
+                                          .toInt()
+                                          .toChar() ==
+                                          'F'
+
+                                  if (
+                                      !validGguf
+                                  ) {
+
+                                      temporary
+                                          .delete()
+
+                                      throw Exception(
+                                          "Downloaded file is not a valid GGUF model."
+                                      )
+                                  }
+
+                                  if (
+                                      modelFile.exists()
+                                  ) {
+
+                                      modelFile
+                                          .delete()
+                                  }
+
+                                  if (
+                                      !temporary
+                                          .renameTo(
+                                              modelFile
+                                          )
+                                  ) {
+
+                                      temporary
+                                          .copyTo(
+                                              modelFile,
+                                              overwrite =
+                                                  true
+                                          )
+
+                                      temporary
+                                          .delete()
+                                  }
+
+                                  runOnUiThread {
+
+                                      status.text =
+                                          "MODEL DOWNLOADED • LOADING…"
+
+                                      addMessage(
+                                          "JARVIS",
+                                          "Local AI model downloaded and verified. Loading it now."
+                                      )
+
+                                      loadModel()
+                                  }
+
+                                  return@launch
+
+                              } catch (
+                                  error: Exception
+                              ) {
+
+                                  try {
+
+                                      connection
+                                          ?.disconnect()
+
+                                  } catch (
+                                      ignored: Exception
+                                  ) {
+                                  }
+
+                                  if (
+                                      attempt >=
+                                      maxAttempts
+                                  ) {
+
+                                      throw error
+                                  }
+
+                                  val savedMb =
+                                      if (
+                                          temporary.exists()
+                                      ) {
+
+                                          temporary.length() /
+                                              1024 /
+                                              1024
+
+                                      } else {
+
+                                          0L
+                                      }
+
+                                  runOnUiThread {
+
+                                      status.text =
+                                          "CONNECTION LOST • RETRY " +
+                                              attempt +
+                                              "/" +
+                                              maxAttempts +
+                                              " • SAVED " +
+                                              savedMb +
+                                              " MB"
+                                  }
+
+                                  kotlinx.coroutines
+                                      .delay(
+                                          (
+                                              1500L *
+                                              attempt
+                                          )
+                                              .coerceAtMost(
+                                                  8000L
+                                              )
+                                      )
+                              }
+                          }
+
+                      } catch (
+                          error: Exception
+                      ) {
+
+                          runOnUiThread {
+
+                              status.text =
+                                  "MODEL DOWNLOAD PAUSED"
+
+                              val savedMb =
+                                  if (
+                                      temporary.exists()
+                                  ) {
+
+                                      temporary.length() /
+                                          1024 /
+                                          1024
+
+                                  } else {
+
+                                      0L
+                                  }
+
+                              addMessage(
+                                  "JARVIS",
+                                  "The connection stopped after several retries. " +
+                                      savedMb +
+                                      " MB is saved. Tap MODEL then DOWNLOAD " +
+                                      "to continue from where it stopped. Error: " +
+                                      (
+                                          error.message
+                                              ?: "connection aborted"
+                                      )
+                              )
+                          }
+                      }
+                  }
+              }
+
+'''
+
+          text = (
+              text[:start] +
+              downloader +
+              text[end:]
+          )
+
+          path.write_text(text)
+
+          print(
+              "Resumable Jarvis model downloader installed."
+          )
+          PY
 
       - name: Check Jarvis Files
         shell: bash
@@ -131,7 +718,11 @@ jobs:
           test -f app/src/main/AndroidManifest.xml
           test -f app/src/main/java/com/novajarvis/android/MainActivity.kt
 
-          echo "All Jarvis files are present."
+          grep -q \
+            "MODEL DOWNLOAD PAUSED" \
+            app/src/main/java/com/novajarvis/android/MainActivity.kt
+
+          echo "Jarvis files and resumable downloader are present."
 
       - name: Build Jarvis V2 APK
         shell: bash
