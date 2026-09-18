@@ -48,3 +48,236 @@ jobs:
           cat > settings.gradle.kts <<'EOF'
           pluginManagement {
               repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+
+          rootProject.name = "JarvisAndroid"
+          include(":app")
+          EOF
+
+          cat > build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application") version "8.9.1" apply false
+          }
+          EOF
+
+          cat > app/build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application")
+          }
+
+          android {
+              namespace = "com.novajarvis.android"
+              compileSdk = 35
+
+              defaultConfig {
+                  applicationId = "com.novajarvis.android"
+                  minSdk = 26
+                  targetSdk = 35
+                  versionCode = 1
+                  versionName = "0.1"
+              }
+
+              buildTypes {
+                  release {
+                      isMinifyEnabled = false
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+              <application
+                  android:allowBackup="true"
+                  android:label="Jarvis"
+                  android:theme="@style/AppTheme">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/res/values/styles.xml <<'EOF'
+          <resources>
+              <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
+                  <item name="android:fontFamily">sans</item>
+                  <item name="android:windowLightStatusBar">false</item>
+                  <item name="android:statusBarColor">#020810</item>
+                  <item name="android:navigationBarColor">#020810</item>
+              </style>
+          </resources>
+          EOF
+
+          cat > app/src/main/java/com/novajarvis/android/MainActivity.java <<'EOF'
+          package com.novajarvis.android;
+
+          import android.app.Activity;
+          import android.graphics.Color;
+          import android.os.Bundle;
+          import android.view.Gravity;
+          import android.view.ViewGroup;
+          import android.widget.Button;
+          import android.widget.EditText;
+          import android.widget.LinearLayout;
+          import android.widget.ScrollView;
+          import android.widget.TextView;
+
+          public class MainActivity extends Activity {
+
+              private LinearLayout chat;
+              private EditText input;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  int cyan = Color.rgb(66, 217, 255);
+                  int background = Color.rgb(2, 8, 16);
+
+                  LinearLayout root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setPadding(32, 32, 32, 32);
+                  root.setBackgroundColor(background);
+
+                  TextView title = new TextView(this);
+                  title.setText("JARVIS // ANDROID");
+                  title.setTextColor(cyan);
+                  title.setTextSize(26);
+                  title.setGravity(Gravity.CENTER_HORIZONTAL);
+                  root.addView(title);
+
+                  TextView status = new TextView(this);
+                  status.setText("FAST  •  TALK  •  LOCAL-FIRST");
+                  status.setTextColor(Color.LTGRAY);
+                  status.setGravity(Gravity.CENTER_HORIZONTAL);
+                  status.setPadding(0, 10, 0, 24);
+                  root.addView(status);
+
+                  ScrollView scroll = new ScrollView(this);
+                  chat = new LinearLayout(this);
+                  chat.setOrientation(LinearLayout.VERTICAL);
+                  scroll.addView(chat);
+
+                  LinearLayout.LayoutParams scrollParams =
+                      new LinearLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT,
+                          0,
+                          1
+                      );
+
+                  root.addView(scroll, scrollParams);
+
+                  addMessage("JARVIS", "Android core online. Ready.");
+
+                  LinearLayout controls = new LinearLayout(this);
+                  controls.setOrientation(LinearLayout.HORIZONTAL);
+
+                  input = new EditText(this);
+                  input.setHint("Talk to Jarvis...");
+                  input.setHintTextColor(Color.GRAY);
+                  input.setTextColor(Color.WHITE);
+                  input.setSingleLine(false);
+
+                  controls.addView(
+                      input,
+                      new LinearLayout.LayoutParams(
+                          0,
+                          ViewGroup.LayoutParams.WRAP_CONTENT,
+                          1
+                      )
+                  );
+
+                  Button talk = new Button(this);
+                  talk.setText("TALK");
+
+                  talk.setOnClickListener(v -> {
+                      String message = input.getText().toString().trim();
+
+                      if (!message.isEmpty()) {
+                          addMessage("YOU", message);
+                          addMessage(
+                              "JARVIS",
+                              "Message received. Local AI will be connected next."
+                          );
+                          input.setText("");
+                      }
+                  });
+
+                  controls.addView(talk);
+
+                  root.addView(controls);
+
+                  setContentView(root);
+              }
+
+              private void addMessage(String who, String message) {
+                  TextView view = new TextView(this);
+                  view.setText(who + ": " + message);
+                  view.setTextSize(17);
+                  view.setPadding(0, 14, 0, 14);
+
+                  if (who.equals("JARVIS")) {
+                      view.setTextColor(Color.rgb(66, 217, 255));
+                  } else {
+                      view.setTextColor(Color.WHITE);
+                  }
+
+                  chat.addView(view);
+              }
+          }
+          EOF
+
+      - name: Build Jarvis APK
+        shell: bash
+        run: |
+          gradle --no-daemon :app:assembleDebug
+
+      - name: Verify APK exists
+        shell: bash
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          if [ ! -f "$APK" ]; then
+            echo "ERROR: APK was not created."
+            exit 1
+          fi
+
+          echo "APK successfully created:"
+          ls -lh "$APK"
+
+      - name: Upload Jarvis Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Jarvis-Android-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
