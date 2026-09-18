@@ -20,11 +20,10 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Accept Android SDK licenses
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -334,4 +333,27 @@ jobs:
                                       messages +=
                                           Msg(
                                               "JARVIS",
-                                              "I received that. Offline AI model support
+                                              "I received that. Offline AI model support is coming next."
+                                          )
+
+                                      input = ""
+                                  }
+                              }
+                          ) {
+                              Text("TALK")
+                          }
+                      }
+                  }
+              }
+          }
+          EOF
+
+      - name: Build Jarvis APK
+        run: gradle --no-daemon assembleDebug
+
+      - name: Upload Jarvis APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Jarvis-Android-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
