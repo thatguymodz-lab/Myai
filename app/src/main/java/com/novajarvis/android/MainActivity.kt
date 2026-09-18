@@ -301,13 +301,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
         setContentView(root)
 
-        sendButton.setOnClickListener {
-            sendMessage()
-        }
-
-        talkButton.setOnClickListener {
-            requestVoiceInput()
-        }
+        sendButton.setOnClickListener { sendMessage() }
+        talkButton.setOnClickListener { requestVoiceInput() }
 
         buildButton.setOnClickListener {
             builderMode = !builderMode
@@ -339,7 +334,6 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     )
 
                 modelReady -> loadLocalModel()
-
                 else -> downloadModel()
             }
         }
@@ -384,7 +378,6 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private fun sendMessage() {
 
         val message = inputText.text.toString().trim()
-
         if (message.isEmpty()) return
 
         inputText.setText("")
@@ -394,16 +387,15 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
         if (!modelReady) {
             addJarvisMessage(
-                "My local AI model hasn't been downloaded yet. " +
-                    "Press MODEL first."
+                "My local AI model hasn't been downloaded yet. Press MODEL first."
             )
             return
         }
 
         if (!modelLoaded) {
             addJarvisMessage(
-                "I'm loading my local AI model. " +
-                    "Please try again when the status says AI READY."
+                "I'm loading my local AI model. Please try again when " +
+                    "the status says AI READY."
             )
             loadLocalModel()
             return
@@ -420,7 +412,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     }
 
     // ============================================================
-    // BUILDER
+    // BUILDER ROUTING
     // ============================================================
 
     private fun handleBuilderRequest(message: String) {
@@ -429,9 +421,6 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         val current = workspace.getCurrentProject()
         val newBuild = workspace.isNewBuildRequest(message)
 
-        /*
-         * Explicit NEW project always creates an isolated folder.
-         */
         if (newBuild) {
 
             if (explicitType == JarvisProjectType.UNKNOWN) {
@@ -439,7 +428,6 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     "Would you like me to build that as a WEBSITE, " +
                         "2D GAME, or 3D GAME?"
                 )
-
                 setStatus("BUILDER: PROJECT TYPE NEEDED")
                 builderMode = true
                 updateBuilderButton()
@@ -462,30 +450,25 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             updateBuilderButton()
 
             generateProject(
-                project = project,
-                userRequest = message,
-                editing = false
+                project,
+                message,
+                false
             )
 
             return
         }
 
-        /*
-         * Follow-up commands modify the current project.
-         */
         if (current != null) {
 
             if (
                 explicitType != JarvisProjectType.UNKNOWN &&
                 explicitType != current.type
             ) {
-
                 addJarvisMessage(
                     "Your current project is a ${projectLabel(current.type)}. " +
                         "You mentioned ${projectLabel(explicitType)}. " +
                         "Say \"create a new ${projectLabel(explicitType)}\" " +
-                        "if you want a separate project. " +
-                        "I won't mix the two projects together."
+                        "if you want a separate project."
                 )
 
                 setStatus("BUILDER: TYPE PROTECTED")
@@ -496,23 +479,18 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             updateBuilderButton()
 
             generateProject(
-                project = current,
-                userRequest = message,
-                editing = true
+                current,
+                message,
+                true
             )
 
             return
         }
 
-        /*
-         * No current project.
-         */
         if (explicitType == JarvisProjectType.UNKNOWN) {
             addJarvisMessage(
-                "Tell me whether you want a WEBSITE, " +
-                    "2D GAME, or 3D GAME."
+                "Tell me whether you want a WEBSITE, 2D GAME, or 3D GAME."
             )
-
             builderMode = true
             updateBuilderButton()
             setStatus("BUILDER: PROJECT TYPE NEEDED")
@@ -535,15 +513,42 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         updateBuilderButton()
 
         generateProject(
-            project = project,
-            userRequest = message,
-            editing = false
+            project,
+            message,
+            false
         )
     }
 
     // ============================================================
-    // PROJECT GENERATION + AUTO REPAIR
+    // FAST / SAFE BUILDER
     // ============================================================
+
+    private fun isGameProject(project: JarvisProject): Boolean {
+        return project.type == JarvisProjectType.GAME_2D ||
+            project.type == JarvisProjectType.GAME_3D
+    }
+
+    /*
+     * Smaller outputs are important on a phone.
+     *
+     * 2D = 1024
+     * 3D = 1024
+     * Website = 1536
+     *
+     * ProjectWorkspace already provides the game foundation,
+     * so the tiny model does not need 2048 tokens to rebuild
+     * everything from scratch.
+     */
+    private fun builderTokenLimit(
+        project: JarvisProject
+    ): Int {
+        return when (project.type) {
+            JarvisProjectType.GAME_2D -> 1024
+            JarvisProjectType.GAME_3D -> 1024
+            JarvisProjectType.WEBSITE -> 1536
+            JarvisProjectType.UNKNOWN -> 1024
+        }
+    }
 
     private fun generateProject(
         project: JarvisProject,
@@ -581,11 +586,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
             try {
 
-                /*
-                 * Games start from ProjectWorkspace's known-good
-                 * 2D/3D foundation instead of asking the tiny model
-                 * to build every required system from nothing.
-                 */
+                val gameProject = isGameProject(project)
+
                 val prompt =
                     when {
                         editing ->
@@ -594,8 +596,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                                 userRequest
                             )
 
-                        project.type == JarvisProjectType.GAME_2D ||
-                            project.type == JarvisProjectType.GAME_3D ->
+                        gameProject ->
                             workspace.createInitialGamePrompt(
                                 project,
                                 userRequest
@@ -613,12 +614,19 @@ USER REQUEST:
 $userRequest
 
 Create the complete project now.
+Return one complete HTML document.
+Keep the code compact and functional.
 """.trimIndent()
                     }
 
-                /*
-                 * FIRST GENERATION
-                 */
+                setStatus(
+                    if (gameProject) {
+                        "BUILDER: FAST GAME GENERATION"
+                    } else {
+                        "BUILDER: GENERATING"
+                    }
+                )
+
                 val firstResult =
                     withContext(Dispatchers.Default) {
                         Llama.complete(
@@ -628,7 +636,7 @@ Create the complete project now.
                                 workspace.builderSystemPrompt(
                                     project.type
                                 ),
-                            maxTokens = 2048
+                            maxTokens = builderTokenLimit(project)
                         )
                     }
 
@@ -638,20 +646,21 @@ Create the complete project now.
                     )
 
                 /*
-                 * If generation is so incomplete that HTML cannot
-                 * even be extracted, games fall back immediately
-                 * to their guaranteed working foundation.
+                 * GAME FAST FAIL:
+                 * Do not make another expensive AI request when
+                 * the first game response did not even produce HTML.
                  */
                 if (html.isNullOrBlank()) {
 
-                    if (useGameFallback(project)) {
+                    if (gameProject && useGameFallback(project)) {
                         addJarvisMessage(
-                            "The AI output was incomplete, so I kept the " +
-                                "working ${projectLabel(project.type)} foundation. " +
-                                "Press PREVIEW to run it, then ask me to improve it."
+                            "The AI response was incomplete, so I switched " +
+                                "straight to the working ${projectLabel(project.type)} " +
+                                "foundation instead of wasting time on another " +
+                                "large generation. Press PREVIEW to run it."
                         )
 
-                        setStatus("BUILDER: WORKING FALLBACK READY")
+                        setStatus("BUILDER: GAME READY")
                         builderMode = true
                         updateBuilderButton()
                         return@launch
@@ -659,7 +668,7 @@ Create the complete project now.
 
                     addJarvisMessage(
                         "The builder didn't return a complete HTML project, " +
-                            "so I did not overwrite your project."
+                            "so I kept the previous project safe."
                     )
 
                     setStatus("BUILDER: OUTPUT INCOMPLETE")
@@ -678,17 +687,44 @@ Create the complete project now.
                     }
 
                 /*
-                 * AUTO REPAIR:
-                 * Give the local model one repair attempt before
-                 * rejecting its generated project.
+                 * IMPORTANT PERFORMANCE FIX:
+                 *
+                 * Games no longer perform a second 2048-token repair.
+                 * If the tiny model generated a fatally broken game,
+                 * immediately use the known-good game foundation.
+                 *
+                 * This greatly reduces memory/CPU pressure and the
+                 * chance Android kills the app during generation.
                  */
-                if (fatal) {
+                if (fatal && gameProject) {
+
+                    if (useGameFallback(project)) {
+
+                        addJarvisMessage(
+                            "The generated game was incomplete. " +
+                                "I automatically switched to the working " +
+                                "${projectLabel(project.type)} foundation. " +
+                                "Press PREVIEW to test it."
+                        )
+
+                        setStatus("BUILDER: SAFE GAME READY")
+                        builderMode = true
+                        updateBuilderButton()
+                        return@launch
+                    }
+                }
+
+                /*
+                 * Websites can still receive one smaller repair pass.
+                 * 1024 tokens instead of the previous 2048.
+                 */
+                if (fatal && !gameProject) {
 
                     setStatus("BUILDER: AUTO-REPAIRING")
 
                     addJarvisMessage(
-                        "I found a build problem. " +
-                            "I'm trying one automatic repair."
+                        "I found a website build problem. " +
+                            "I'm trying one compact automatic repair."
                     )
 
                     val repairPrompt =
@@ -707,7 +743,7 @@ Create the complete project now.
                                     workspace.builderSystemPrompt(
                                         project.type
                                     ),
-                                maxTokens = 2048
+                                maxTokens = 1024
                             )
                         }
 
@@ -737,20 +773,13 @@ Create the complete project now.
                     }
                 }
 
-                /*
-                 * If repair still fails:
-                 *
-                 * Games -> use known-good foundation.
-                 * Websites -> protect previous working version.
-                 */
                 if (fatal) {
 
-                    if (useGameFallback(project)) {
+                    if (gameProject && useGameFallback(project)) {
 
                         addJarvisMessage(
-                            "The generated game was still incomplete after repair. " +
-                                "I kept a working ${projectLabel(project.type)} " +
-                                "version instead. Press PREVIEW to run it."
+                            "I protected the project by restoring its working " +
+                                "${projectLabel(project.type)} foundation."
                         )
 
                         setStatus("BUILDER: FALLBACK READY")
@@ -762,17 +791,13 @@ Create the complete project now.
                     addJarvisMessage(
                         "Validation found: " +
                             problems.joinToString("; ") +
-                            ". I kept your previous version safe."
+                            ". I kept your previous working version safe."
                     )
 
                     setStatus("BUILDER: VALIDATION FAILED")
                     return@launch
                 }
 
-                /*
-                 * Only save generated output after it survives
-                 * the fatal validation checks.
-                 */
                 workspace.saveMainFile(
                     project,
                     html
@@ -790,9 +815,8 @@ Create the complete project now.
                 } else {
 
                     addJarvisMessage(
-                        "${project.name} was saved, but I found " +
-                            problems.joinToString("; ") +
-                            ". You can ask me to fix those issues."
+                        "${project.name} was saved with warnings: " +
+                            problems.joinToString("; ")
                     )
 
                     setStatus("BUILDER: READY WITH WARNINGS")
@@ -803,11 +827,35 @@ Create the complete project now.
 
             } catch (e: Exception) {
 
-                addJarvisMessage(
-                    "Builder error: ${e.message ?: "Unknown builder error"}"
-                )
+                /*
+                 * CRASH/EXCEPTION PROTECTION:
+                 * A game generation failure should not destroy the
+                 * project. Restore the foundation whenever possible.
+                 */
+                if (
+                    isGameProject(project) &&
+                    useGameFallback(project)
+                ) {
 
-                setStatus("BUILDER: ERROR")
+                    addJarvisMessage(
+                        "Game generation stopped before completion, but " +
+                            "I recovered the project using the working " +
+                            "${projectLabel(project.type)} foundation. " +
+                            "Press PREVIEW to continue."
+                    )
+
+                    setStatus("BUILDER: RECOVERED")
+                    builderMode = true
+                    updateBuilderButton()
+
+                } else {
+
+                    addJarvisMessage(
+                        "Builder error: ${e.message ?: "Unknown builder error"}"
+                    )
+
+                    setStatus("BUILDER: ERROR")
+                }
 
             } finally {
 
@@ -816,34 +864,32 @@ Create the complete project now.
         }
     }
 
-    /*
-     * Loads/saves the guaranteed foundation for 2D/3D projects.
-     * Returns true only when a usable fallback exists.
-     */
     private fun useGameFallback(
         project: JarvisProject
     ): Boolean {
 
-        if (
-            project.type != JarvisProjectType.GAME_2D &&
-            project.type != JarvisProjectType.GAME_3D
-        ) {
+        if (!isGameProject(project)) {
             return false
         }
 
-        val fallback =
-            workspace.workingFallback(project)
+        return try {
 
-        if (fallback.isNullOrBlank()) {
-            return false
+            val fallback =
+                workspace.workingFallback(project)
+
+            if (fallback.isNullOrBlank()) {
+                false
+            } else {
+                workspace.saveMainFile(
+                    project,
+                    fallback
+                )
+                true
+            }
+
+        } catch (_: Exception) {
+            false
         }
-
-        workspace.saveMainFile(
-            project,
-            fallback
-        )
-
-        return true
     }
 
     // ============================================================
@@ -924,10 +970,6 @@ Create the complete project now.
         webView.webViewClient = WebViewClient()
         webView.webChromeClient = WebChromeClient()
 
-        /*
-         * No Android JavaScript interface is exposed.
-         * Generated JavaScript stays inside the preview WebView.
-         */
         webView.loadDataWithBaseURL(
             "https://jarvis.local/",
             html,
@@ -1136,6 +1178,7 @@ $message
                 Intent(
                     RecognizerIntent.ACTION_RECOGNIZE_SPEECH
                 ).apply {
+
                     putExtra(
                         RecognizerIntent.EXTRA_LANGUAGE_MODEL,
                         RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
@@ -1236,7 +1279,13 @@ $message
                             modelPath = modelFile.absolutePath,
                             config =
                                 LlamaConfig(
+                                    /*
+                                     * Keep the working #34 context.
+                                     * Reducing generation token counts
+                                     * is safer than shrinking context.
+                                     */
                                     contextSize = 4096,
+
                                     threads =
                                         Runtime
                                             .getRuntime()
@@ -1315,10 +1364,6 @@ $message
                 var responseCode =
                     connection.responseCode
 
-                /*
-                 * Server ignored Range request.
-                 * Restart cleanly instead of corrupting the file.
-                 */
                 if (
                     downloaded > 0L &&
                     responseCode != HttpURLConnection.HTTP_PARTIAL
@@ -1588,5 +1633,4 @@ $message
 
         super.onDestroy()
     }
-
 }
