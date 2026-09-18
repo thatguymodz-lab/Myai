@@ -53,6 +53,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
     private var modelReady = false
     private var modelLoaded = false
+    private var modelLoading = false
+    private var generationRunning = false
+
     private var llamaModel: LlamaModel? = null
 
     private val downloadExecutor =
@@ -157,7 +160,15 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             )
 
         buildInterface()
+
         restoreMemory()
+
+        /*
+         * Check for a build that was running when Android
+         * terminated the previous app process.
+         */
+        recoverInterruptedBuild()
+
         checkModel()
 
         addJarvisMessage(
@@ -169,9 +180,20 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             ?.let { current ->
 
                 addJarvisMessage(
-                    "Project workspace restored: " +
+                    "Current workspace: " +
                         "${current.name} " +
                         "(${projectLabel(current.type)})."
+                )
+            }
+
+        workspace
+            .getPreviewProject()
+            ?.let { preview ->
+
+                addJarvisMessage(
+                    "Verified preview available: " +
+                        "${preview.name} " +
+                        "(${projectLabel(preview.type)})."
                 )
             }
 
@@ -186,6 +208,84 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     "Press MODEL to download it."
             )
         }
+    }
+
+    // ============================================================
+    // RECOVERY
+    // ============================================================
+
+    private fun recoverInterruptedBuild() {
+
+        if (
+            !workspace.wasBuildInterrupted()
+        ) {
+
+            return
+        }
+
+        val interrupted =
+            workspace.getInterruptedProject()
+
+        /*
+         * Clear the stale running flag immediately.
+         *
+         * The project files themselves are preserved.
+         */
+        workspace.clearInterruptedBuild()
+
+        if (interrupted == null) {
+
+            addJarvisMessage(
+                "I detected an interrupted build. " +
+                    "Your last verified preview was kept safe."
+            )
+
+            return
+        }
+
+        val html =
+            workspace.readMainFile(
+                interrupted
+            )
+
+        if (
+            !html.isNullOrBlank()
+        ) {
+
+            val problems =
+                workspace.validateProject(
+                    interrupted,
+                    html
+                )
+
+            val fatal =
+                problems.any {
+                    workspace.isFatalValidationProblem(
+                        it
+                    )
+                }
+
+            if (!fatal) {
+
+                workspace.markProjectVerified(
+                    interrupted
+                )
+
+                addJarvisMessage(
+                    "I recovered ${interrupted.name} after the " +
+                        "previous interruption. Its saved project " +
+                        "passed validation and is ready to preview."
+                )
+
+                return
+            }
+        }
+
+        addJarvisMessage(
+            "The previous build of ${interrupted.name} was interrupted " +
+                "before a complete project was saved. I did not replace " +
+                "your verified Preview with the incomplete build."
+        )
     }
 
     // ============================================================
@@ -576,6 +676,15 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
         buildButton.setOnClickListener {
 
+            if (generationRunning) {
+
+                addJarvisMessage(
+                    "A build is already running."
+                )
+
+                return@setOnClickListener
+            }
+
             builderMode =
                 !builderMode
 
@@ -606,7 +715,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
         previewButton.setOnClickListener {
 
-            previewCurrentProject()
+            previewVerifiedProject()
         }
 
         modelButton.setOnClickListener {
@@ -696,6 +805,15 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     // ============================================================
 
     private fun sendMessage() {
+
+        if (generationRunning) {
+
+            addJarvisMessage(
+                "I'm still finishing the current request."
+            )
+
+            return
+        }
 
         val message =
             inputText
@@ -824,22 +942,32 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     explicitType
                 )
 
-            /*
-             * IMPORTANT PHONE-SAFE CHANGE
-             *
-             * ProjectWorkspace creates a working game foundation
-             * immediately.
-             *
-             * For a NEW game we DO NOT run the local AI here.
-             *
-             * This avoids the large inference operation that was
-             * causing Android to close Jarvis.
-             */
             val project =
-                workspace.createProject(
-                    name,
-                    explicitType
-                )
+                try {
+
+                    workspace.createProject(
+                        name,
+                        explicitType
+                    )
+
+                } catch (
+                    e: Exception
+                ) {
+
+                    addJarvisMessage(
+                        "I couldn't create the project workspace: " +
+                            (
+                                e.message ?:
+                                "Unknown storage error"
+                            )
+                    )
+
+                    setStatus(
+                        "BUILDER: STORAGE ERROR"
+                    )
+
+                    return
+                }
 
             builderMode =
                 true
@@ -859,18 +987,14 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 addJarvisMessage(
                     "${project.name} is ready as a " +
                         "${projectLabel(project.type)}. " +
-                        "I created the playable foundation instantly " +
-                        "without running heavy AI generation. " +
-                        "Press PREVIEW to play it. " +
-                        "Then tell me what you want changed."
+                        "I created a verified playable foundation instantly. " +
+                        "Press PREVIEW to play it, then tell me what " +
+                        "you want changed."
                 )
 
                 return
             }
 
-            /*
-             * Websites can still use normal AI generation.
-             */
             generateProject(
                 project,
                 message,
@@ -913,9 +1037,6 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
             updateBuilderButton()
 
-            /*
-             * AI is only used for edits to an existing project.
-             */
             generateProject(
                 current,
                 message,
@@ -958,20 +1079,37 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             )
 
         val project =
-            workspace.createProject(
-                name,
-                explicitType
-            )
+            try {
+
+                workspace.createProject(
+                    name,
+                    explicitType
+                )
+
+            } catch (
+                e: Exception
+            ) {
+
+                addJarvisMessage(
+                    "I couldn't create the project workspace: " +
+                        (
+                            e.message ?:
+                            "Unknown storage error"
+                        )
+                )
+
+                setStatus(
+                    "BUILDER: STORAGE ERROR"
+                )
+
+                return
+            }
 
         builderMode =
             true
 
         updateBuilderButton()
 
-        /*
-         * Same phone-safe protection when there was no
-         * previous current project.
-         */
         if (
             isGameProject(
                 project
@@ -985,9 +1123,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             addJarvisMessage(
                 "${project.name} is ready as a " +
                     "${projectLabel(project.type)}. " +
-                    "The playable foundation was created instantly. " +
-                    "Press PREVIEW to play it, then tell me what " +
-                    "you want changed."
+                    "Press PREVIEW to play it."
             )
 
             return
@@ -1001,7 +1137,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     }
 
     // ============================================================
-    // PHONE SAFE BUILDER
+    // PHONE-SAFE BUILDER
     // ============================================================
 
     private fun isGameProject(
@@ -1017,11 +1153,11 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     }
 
     /*
-     * AI is NOT used for initial game creation anymore.
+     * Lower output limits reduce peak memory use.
      *
-     * These limits therefore apply mainly to edits.
-     *
-     * Game edits are deliberately kept small.
+     * The 0.5B model can still make useful compact pages,
+     * but asking it for a huge page on-device increases the
+     * chance Android kills the process.
      */
     private fun builderTokenLimit(
         project: JarvisProject
@@ -1031,22 +1167,22 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             project.type
         ) {
 
+            JarvisProjectType.WEBSITE ->
+                896
+
             JarvisProjectType.GAME_2D ->
-                384
+                320
 
             JarvisProjectType.GAME_3D ->
-                384
-
-            JarvisProjectType.WEBSITE ->
-                1536
+                320
 
             JarvisProjectType.UNKNOWN ->
-                384
+                256
         }
     }
 
     // ============================================================
-    // PROJECT GENERATION / EDITING
+    // PROJECT GENERATION
     // ============================================================
 
     private fun generateProject(
@@ -1054,6 +1190,15 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         userRequest: String,
         editing: Boolean
     ) {
+
+        if (generationRunning) {
+
+            addJarvisMessage(
+                "A project generation is already running."
+            )
+
+            return
+        }
 
         val model =
             llamaModel
@@ -1071,10 +1216,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         }
 
         /*
-         * Extra protection:
-         *
-         * Even if another route accidentally tries to generate
-         * a NEW game, stop it here and use the foundation.
+         * New games already have their verified foundation.
          */
         if (
             !editing &&
@@ -1094,8 +1236,21 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             return
         }
 
+        generationRunning =
+            true
+
         setBusy(
             true
+        )
+
+        /*
+         * Persist this BEFORE inference.
+         *
+         * If Android terminates the app, the next launch knows
+         * exactly which project was interrupted.
+         */
+        workspace.beginBuild(
+            project
         )
 
         setStatus(
@@ -1119,23 +1274,24 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             if (editing) {
 
                 "Updating ${project.name}. " +
-                    "I'll preserve its project type."
+                    "I'll preserve its existing verified version " +
+                    "until the update passes validation."
 
             } else {
 
                 "Creating ${project.name} as a " +
-                    "${projectLabel(project.type)}."
+                    "${projectLabel(project.type)}. " +
+                    "It won't replace Preview until the build " +
+                    "has finished and passed validation."
             }
         )
 
         lifecycleScope.launch {
 
-            try {
+            var successful =
+                false
 
-                val gameProject =
-                    isGameProject(
-                        project
-                    )
+            try {
 
                 val prompt =
                     if (editing) {
@@ -1157,23 +1313,29 @@ ${project.type.name}
 USER REQUEST:
 $userRequest
 
-Create the complete project now.
+Create ONE complete compact index.html.
 
-Return one complete HTML document.
+IMPORTANT:
+Keep the page lightweight.
+Use short CSS.
+Use lightweight JavaScript only when necessary.
+Do not use large external assets.
+Include the mobile viewport.
+Finish the entire document including </body> and </html>.
 
-Keep the code compact, functional and mobile friendly.
+Return exactly:
+
+<JARVIS_FILE>
+COMPLETE HTML
+</JARVIS_FILE>
 """.trimIndent()
                     }
 
                 setStatus(
-                    if (gameProject) {
-                        "BUILDER: LIGHT GAME EDIT"
-                    } else {
-                        "BUILDER: GENERATING"
-                    }
+                    "BUILDER: GENERATING"
                 )
 
-                val firstResult =
+                val result =
                     withContext(
                         Dispatchers.Default
                     ) {
@@ -1193,49 +1355,26 @@ Keep the code compact, functional and mobile friendly.
                         )
                     }
 
+                /*
+                 * Keep only the generated text reference we need.
+                 */
+                val raw =
+                    result
+                        .text
+                        .trim()
+
                 var html =
                     workspace.extractGeneratedHtml(
-                        firstResult
-                            .text
-                            .trim()
+                        raw
                     )
-
-                // =================================================
-                // INCOMPLETE OUTPUT
-                // =================================================
 
                 if (
                     html.isNullOrBlank()
                 ) {
 
-                    if (
-                        gameProject
-                    ) {
-
-                        /*
-                         * IMPORTANT:
-                         *
-                         * Do NOT overwrite an existing edited game
-                         * with the generic fallback here.
-                         *
-                         * The previous saved version remains safe.
-                         */
-                        addJarvisMessage(
-                            "The AI edit stopped before returning complete " +
-                                "game code. I kept your previous working " +
-                                "version unchanged."
-                        )
-
-                        setStatus(
-                            "BUILDER: PREVIOUS GAME KEPT"
-                        )
-
-                        return@launch
-                    }
-
                     addJarvisMessage(
-                        "The builder didn't return a complete project. " +
-                            "Your previous working project was kept safe."
+                        "The builder stopped before returning a complete " +
+                            "project. Nothing incomplete was promoted to Preview."
                     )
 
                     setStatus(
@@ -1245,13 +1384,35 @@ Keep the code compact, functional and mobile friendly.
                     return@launch
                 }
 
-                var problems =
+                /*
+                 * Reject suspiciously incomplete HTML before saving.
+                 */
+                if (
+                    !html.contains(
+                        "</html>",
+                        ignoreCase = true
+                    )
+                ) {
+
+                    addJarvisMessage(
+                        "The generated page ended early, so I rejected it " +
+                            "instead of replacing your verified Preview."
+                    )
+
+                    setStatus(
+                        "BUILDER: OUTPUT CUT OFF"
+                    )
+
+                    return@launch
+                }
+
+                val problems =
                     workspace.validateProject(
                         project,
                         html
                     )
 
-                var fatal =
+                val fatal =
                     problems.any {
 
                         workspace
@@ -1260,127 +1421,21 @@ Keep the code compact, functional and mobile friendly.
                             )
                     }
 
-                // =================================================
-                // GAME VALIDATION
-                // =================================================
-
-                /*
-                 * Never run a second AI repair on a game.
-                 *
-                 * This is intentionally phone-safe.
-                 */
-                if (
-                    fatal &&
-                    gameProject
-                ) {
-
-                    addJarvisMessage(
-                        "That game edit didn't pass validation, " +
-                            "so I kept your previous working game unchanged."
-                    )
-
-                    setStatus(
-                        "BUILDER: PREVIOUS GAME KEPT"
-                    )
-
-                    return@launch
-                }
-
-                // =================================================
-                // WEBSITE REPAIR
-                // =================================================
-
-                if (
-                    fatal &&
-                    !gameProject
-                ) {
-
-                    setStatus(
-                        "BUILDER: AUTO-REPAIRING"
-                    )
-
-                    addJarvisMessage(
-                        "I found a website build problem. " +
-                            "I'm trying one compact repair."
-                    )
-
-                    val repairPrompt =
-                        workspace.createRepairPrompt(
-                            project,
-                            html,
-                            problems
-                        )
-
-                    val repairResult =
-                        withContext(
-                            Dispatchers.Default
-                        ) {
-
-                            Llama.complete(
-                                model,
-                                prompt =
-                                    repairPrompt,
-                                systemPrompt =
-                                    workspace.builderSystemPrompt(
-                                        project.type
-                                    ),
-                                maxTokens =
-                                    768
-                            )
-                        }
-
-                    val repairedHtml =
-                        workspace.extractGeneratedHtml(
-                            repairResult
-                                .text
-                                .trim()
-                        )
-
-                    if (
-                        !repairedHtml.isNullOrBlank()
-                    ) {
-
-                        val repairedProblems =
-                            workspace.validateProject(
-                                project,
-                                repairedHtml
-                            )
-
-                        val repairedFatal =
-                            repairedProblems.any {
-
-                                workspace
-                                    .isFatalValidationProblem(
-                                        it
-                                    )
-                            }
-
-                        if (!repairedFatal) {
-
-                            html =
-                                repairedHtml
-
-                            problems =
-                                repairedProblems
-
-                            fatal =
-                                false
-                        }
-                    }
-                }
-
-                // =================================================
-                // FINAL VALIDATION
-                // =================================================
-
                 if (fatal) {
 
+                    /*
+                     * IMPORTANT PHONE-SAFE CHANGE:
+                     *
+                     * Do not immediately run a second expensive LLM
+                     * inference on Android.
+                     */
                     addJarvisMessage(
-                        "Validation found: " +
+                        "The generated project didn't pass validation: " +
                             problems.joinToString(
                                 "; "
                             ) +
-                            ". I kept your previous working version safe."
+                            ". I rejected it and kept the previous " +
+                            "verified Preview safe."
                     )
 
                     setStatus(
@@ -1390,23 +1445,31 @@ Keep the code compact, functional and mobile friendly.
                     return@launch
                 }
 
-                // =================================================
-                // SAVE
-                // =================================================
-
-                workspace.saveMainFile(
-                    project,
-                    html
+                setStatus(
+                    "BUILDER: SAVING SAFELY"
                 )
+
+                /*
+                 * ProjectWorkspace writes to a temporary file,
+                 * validates it, then replaces index.html.
+                 */
+                workspace.saveMainFileAtomic(
+                    project,
+                    html,
+                    makePreviewable = true
+                )
+
+                successful =
+                    true
 
                 if (
                     problems.isEmpty()
                 ) {
 
                     addJarvisMessage(
-                        "${project.name} is built and saved. " +
-                            "Validation passed. " +
-                            "Press PREVIEW to run it."
+                        "${project.name} is built, verified and saved. " +
+                            "PREVIEW now points to this " +
+                            "${projectLabel(project.type)}."
                     )
 
                     setStatus(
@@ -1416,7 +1479,8 @@ Keep the code compact, functional and mobile friendly.
                 } else {
 
                     addJarvisMessage(
-                        "${project.name} was saved with warnings: " +
+                        "${project.name} is saved and previewable. " +
+                            "Non-fatal warnings: " +
                             problems.joinToString(
                                 "; "
                             )
@@ -1436,46 +1500,36 @@ Keep the code compact, functional and mobile friendly.
                 e: Exception
             ) {
 
-                /*
-                 * Never destroy the saved project when inference fails.
-                 */
-                if (
-                    isGameProject(
-                        project
-                    )
-                ) {
+                addJarvisMessage(
+                    "The build stopped: " +
+                        (
+                            e.message ?:
+                            "Unknown builder error"
+                        ) +
+                        ". I kept the last verified Preview safe."
+                )
 
-                    addJarvisMessage(
-                        "The AI edit stopped, but your previous working " +
-                            "${projectLabel(project.type)} is still safe. " +
-                            "Press PREVIEW to continue."
-                    )
-
-                    setStatus(
-                        "BUILDER: GAME KEPT SAFE"
-                    )
-
-                    builderMode =
-                        true
-
-                    updateBuilderButton()
-
-                } else {
-
-                    addJarvisMessage(
-                        "Builder error: " +
-                            (
-                                e.message ?:
-                                "Unknown builder error"
-                            )
-                    )
-
-                    setStatus(
-                        "BUILDER: ERROR"
-                    )
-                }
+                setStatus(
+                    "BUILDER: BUILD STOPPED"
+                )
 
             } finally {
+
+                /*
+                 * Clear the build marker on normal coroutine completion.
+                 *
+                 * If Android kills the entire process during inference,
+                 * this code never runs and beginBuild() remains stored.
+                 * That is what lets recoverInterruptedBuild() detect it
+                 * next time.
+                 */
+                workspace.finishBuild(
+                    project,
+                    successful
+                )
+
+                generationRunning =
+                    false
 
                 setBusy(
                     false
@@ -1485,66 +1539,45 @@ Keep the code compact, functional and mobile friendly.
     }
 
     // ============================================================
-    // GAME FALLBACK
+    // VERIFIED PREVIEW
     // ============================================================
 
-    private fun useGameFallback(
-        project: JarvisProject
-    ): Boolean {
+    private fun previewVerifiedProject() {
 
-        if (
-            !isGameProject(
-                project
-            )
-        ) {
-
-            return false
-        }
-
-        return try {
-
-            val fallback =
-                workspace.workingFallback(
-                    project
-                )
-
-            if (
-                fallback.isNullOrBlank()
-            ) {
-
-                false
-
-            } else {
-
-                workspace.saveMainFile(
-                    project,
-                    fallback
-                )
-
-                true
-            }
-
-        } catch (
-            _: Exception
-        ) {
-
-            false
-        }
-    }
-
-    // ============================================================
-    // PREVIEW
-    // ============================================================
-
-    private fun previewCurrentProject() {
-
+        /*
+         * Never use getCurrentProject() here.
+         *
+         * Current may be a website that is only half built.
+         */
         val project =
-            workspace.getCurrentProject()
+            workspace.getPreviewProject()
 
         if (project == null) {
 
-            addJarvisMessage(
-                "There isn't a current project to preview yet."
+            val current =
+                workspace.getCurrentProject()
+
+            if (
+                current != null &&
+                current.type ==
+                    JarvisProjectType.WEBSITE
+            ) {
+
+                addJarvisMessage(
+                    "${current.name} doesn't have a verified website " +
+                        "build yet. Build it successfully first, then PREVIEW " +
+                        "will open that website."
+                )
+
+            } else {
+
+                addJarvisMessage(
+                    "There isn't a verified project to preview yet."
+                )
+            }
+
+            setStatus(
+                "PREVIEW: NOTHING VERIFIED"
             )
 
             return
@@ -1560,182 +1593,275 @@ Keep the code compact, functional and mobile friendly.
         ) {
 
             addJarvisMessage(
-                "The current project doesn't have a finished " +
-                    "index.html yet."
+                "The verified project file could not be read."
+            )
+
+            setStatus(
+                "PREVIEW: FILE ERROR"
             )
 
             return
         }
 
-        val dialog =
-            Dialog(
-                this
+        val problems =
+            workspace.validateProject(
+                project,
+                html
             )
 
-        val root =
-            LinearLayout(this).apply {
+        val fatal =
+            problems.any {
 
-                orientation =
-                    LinearLayout.VERTICAL
-
-                setBackgroundColor(
-                    Color.BLACK
+                workspace.isFatalValidationProblem(
+                    it
                 )
             }
 
-        val topBar =
-            LinearLayout(this).apply {
+        if (fatal) {
 
-                orientation =
-                    LinearLayout.HORIZONTAL
+            addJarvisMessage(
+                "Preview was blocked because the saved project " +
+                    "no longer passes validation."
+            )
 
-                gravity =
-                    Gravity.CENTER_VERTICAL
+            setStatus(
+                "PREVIEW: VALIDATION FAILED"
+            )
 
-                setPadding(
-                    dp(8),
-                    dp(6),
-                    dp(8),
-                    dp(6)
+            return
+        }
+
+        showProjectPreview(
+            project,
+            html
+        )
+    }
+
+    private fun showProjectPreview(
+        project: JarvisProject,
+        html: String
+    ) {
+
+        try {
+
+            val dialog =
+                Dialog(
+                    this
                 )
-            }
 
-        val title =
-            TextView(this).apply {
+            val root =
+                LinearLayout(this).apply {
 
-                text =
-                    "${project.name} • " +
-                        projectLabel(
-                            project.type
-                        )
+                    orientation =
+                        LinearLayout.VERTICAL
 
-                setTextColor(
-                    Color.WHITE
-                )
+                    setBackgroundColor(
+                        Color.BLACK
+                    )
+                }
 
-                textSize =
-                    14f
+            val topBar =
+                LinearLayout(this).apply {
 
-                setPadding(
-                    dp(8),
+                    orientation =
+                        LinearLayout.HORIZONTAL
+
+                    gravity =
+                        Gravity.CENTER_VERTICAL
+
+                    setPadding(
+                        dp(8),
+                        dp(6),
+                        dp(8),
+                        dp(6)
+                    )
+                }
+
+            val title =
+                TextView(this).apply {
+
+                    text =
+                        "${project.name} • " +
+                            projectLabel(
+                                project.type
+                            )
+
+                    setTextColor(
+                        Color.WHITE
+                    )
+
+                    textSize =
+                        14f
+
+                    setPadding(
+                        dp(8),
+                        0,
+                        dp(8),
+                        0
+                    )
+                }
+
+            val close =
+                Button(this).apply {
+
+                    text =
+                        "CLOSE"
+                }
+
+            topBar.addView(
+                title,
+                LinearLayout.LayoutParams(
                     0,
-                    dp(8),
-                    0
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1f
                 )
+            )
+
+            topBar.addView(
+                close,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    dp(48)
+                )
+            )
+
+            val webView =
+                WebView(
+                    this
+                )
+
+            webView.settings.apply {
+
+                javaScriptEnabled =
+                    true
+
+                domStorageEnabled =
+                    true
+
+                mediaPlaybackRequiresUserGesture =
+                    false
+
+                /*
+                 * Keep direct local filesystem access disabled.
+                 */
+                allowFileAccess =
+                    false
+
+                allowContentAccess =
+                    false
+
+                /*
+                 * Avoid unnecessary WebView caching.
+                 */
+                cacheMode =
+                    android.webkit.WebSettings.LOAD_NO_CACHE
             }
 
-        val close =
-            Button(this).apply {
+            webView.webViewClient =
+                WebViewClient()
 
-                text =
-                    "CLOSE"
-            }
+            webView.webChromeClient =
+                WebChromeClient()
 
-        topBar.addView(
-            title,
-            LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-            )
-        )
-
-        topBar.addView(
-            close,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                dp(48)
-            )
-        )
-
-        val webView =
-            WebView(
-                this
+            root.addView(
+                topBar
             )
 
-        webView.settings.apply {
+            root.addView(
+                webView,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    0,
+                    1f
+                )
+            )
 
-            javaScriptEnabled =
-                true
+            dialog.setContentView(
+                root
+            )
 
-            domStorageEnabled =
-                true
-
-            mediaPlaybackRequiresUserGesture =
+            var destroyed =
                 false
 
-            allowFileAccess =
-                false
+            fun destroyPreview() {
 
-            allowContentAccess =
-                false
-        }
+                if (destroyed) {
+                    return
+                }
 
-        webView.webViewClient =
-            WebViewClient()
+                destroyed =
+                    true
 
-        webView.webChromeClient =
-            WebChromeClient()
+                try {
 
-        webView.loadDataWithBaseURL(
-            "https://jarvis.local/",
-            html,
-            "text/html",
-            "UTF-8",
-            null
-        )
+                    webView.stopLoading()
 
-        root.addView(
-            topBar
-        )
+                    webView.loadUrl(
+                        "about:blank"
+                    )
 
-        root.addView(
-            webView,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                0,
-                1f
+                    webView.clearHistory()
+
+                    webView.removeAllViews()
+
+                    webView.destroy()
+
+                } catch (
+                    _: Exception
+                ) {
+                }
+            }
+
+            close.setOnClickListener {
+
+                destroyPreview()
+
+                dialog.dismiss()
+            }
+
+            dialog.setOnDismissListener {
+
+                destroyPreview()
+            }
+
+            dialog.show()
+
+            dialog.window?.setLayout(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
             )
-        )
 
-        dialog.setContentView(
-            root
-        )
+            /*
+             * Load only after the dialog is ready.
+             */
+            webView.loadDataWithBaseURL(
+                "https://jarvis.local/",
+                html,
+                "text/html",
+                "UTF-8",
+                null
+            )
 
-        close.setOnClickListener {
+            setStatus(
+                "PREVIEW: ${projectLabel(project.type)}"
+            )
 
-            try {
+        } catch (
+            e: Exception
+        ) {
 
-                webView.stopLoading()
-                webView.destroy()
+            addJarvisMessage(
+                "Preview couldn't open: " +
+                    (
+                        e.message ?:
+                        "Unknown WebView error"
+                    )
+            )
 
-            } catch (
-                _: Exception
-            ) {
-            }
-
-            dialog.dismiss()
+            setStatus(
+                "PREVIEW: ERROR"
+            )
         }
-
-        dialog.setOnDismissListener {
-
-            try {
-
-                webView.stopLoading()
-                webView.destroy()
-
-            } catch (
-                _: Exception
-            ) {
-            }
-        }
-
-        dialog.show()
-
-        dialog.window?.setLayout(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT
-        )
     }
 
     // ============================================================
@@ -1745,6 +1871,11 @@ Keep the code compact, functional and mobile friendly.
     private fun generateAIResponse(
         message: String
     ) {
+
+        if (generationRunning) {
+
+            return
+        }
 
         val model =
             llamaModel
@@ -1760,6 +1891,9 @@ Keep the code compact, functional and mobile friendly.
 
             return
         }
+
+        generationRunning =
+            true
 
         setBusy(
             true
@@ -1819,7 +1953,7 @@ $message
                                     "Do not pretend you performed actions " +
                                     "you cannot perform.",
                             maxTokens =
-                                256
+                                224
                         )
                     }
 
@@ -1847,7 +1981,8 @@ $message
                     )
                 }
 
-                prefs.edit()
+                prefs
+                    .edit()
                     .putString(
                         "previous_user_message",
                         message
@@ -1875,6 +2010,9 @@ $message
                 )
 
             } finally {
+
+                generationRunning =
+                    false
 
                 setBusy(
                     false
@@ -1909,6 +2047,13 @@ $message
         message: String
     ) {
 
+        if (
+            !::chatText.isInitialized
+        ) {
+
+            return
+        }
+
         chatText.append(
             message
         )
@@ -1918,7 +2063,8 @@ $message
         message: String
     ) {
 
-        prefs.edit()
+        prefs
+            .edit()
             .putString(
                 "last_user_message",
                 message
@@ -1945,7 +2091,7 @@ $message
     }
 
     // ============================================================
-    // VOICE INPUT
+    // VOICE
     // ============================================================
 
     private fun requestVoiceInput() {
@@ -2041,12 +2187,19 @@ $message
         text: String
     ) {
 
-        tts?.speak(
-            text,
-            TextToSpeech.QUEUE_FLUSH,
-            null,
-            "jarvis_reply"
-        )
+        try {
+
+            tts?.speak(
+                text,
+                TextToSpeech.QUEUE_FLUSH,
+                null,
+                "jarvis_reply"
+            )
+
+        } catch (
+            _: Exception
+        ) {
+        }
     }
 
     // ============================================================
@@ -2091,10 +2244,16 @@ $message
             return
         }
 
-        if (modelLoaded) {
+        if (
+            modelLoaded ||
+            modelLoading
+        ) {
 
             return
         }
+
+        modelLoading =
+            true
 
         modelButton.isEnabled =
             false
@@ -2103,6 +2262,9 @@ $message
             false
 
         buildButton.isEnabled =
+            false
+
+        previewButton.isEnabled =
             false
 
         setStatus(
@@ -2130,20 +2292,16 @@ $message
                                 LlamaConfig(
 
                                     /*
-                                     * Reduced from 4096 to 3072.
+                                     * Reduced further from 3072.
                                      *
-                                     * This lowers memory pressure on
-                                     * Android while leaving enough
-                                     * context for chat and compact edits.
+                                     * This is a major memory-safety change.
                                      */
                                     contextSize =
-                                        3072,
+                                        2048,
 
                                     /*
-                                     * Maximum four CPU threads.
-                                     *
-                                     * This is intentionally lower than
-                                     * the previous six-thread maximum.
+                                     * Conservative CPU use helps reduce
+                                     * heat and simultaneous memory pressure.
                                      */
                                     threads =
                                         Runtime
@@ -2202,6 +2360,9 @@ $message
 
             } finally {
 
+                modelLoading =
+                    false
+
                 modelButton.isEnabled =
                     true
 
@@ -2210,12 +2371,15 @@ $message
 
                 buildButton.isEnabled =
                     true
+
+                previewButton.isEnabled =
+                    true
             }
         }
     }
 
     // ============================================================
-    // MODEL DOWNLOADER
+    // MODEL DOWNLOAD
     // ============================================================
 
     private fun downloadModel() {
@@ -2235,8 +2399,7 @@ $message
 
         addJarvisMessage(
             "Downloading my local AI model. " +
-                "It's roughly 500 MB and only needs " +
-                "to be downloaded once."
+                "It only needs to be downloaded once."
         )
 
         downloadExecutor.execute {
@@ -2349,9 +2512,12 @@ $message
                                 )
                             }
 
+                            /*
+                             * Smaller buffer than before.
+                             */
                             val buffer =
                                 ByteArray(
-                                    128 * 1024
+                                    64 * 1024
                                 )
 
                             var current =
@@ -2390,7 +2556,7 @@ $message
                                 if (
                                     now -
                                         lastUiUpdate >=
-                                        250L
+                                        350L
                                 ) {
 
                                     lastUiUpdate =
@@ -2510,7 +2676,7 @@ $message
                                 e.message ?:
                                 "Network error"
                             ) +
-                            ". The partial download has been kept. " +
+                            ". The partial download was kept. " +
                             "Press MODEL to resume."
                     )
                 }
@@ -2606,6 +2772,11 @@ $message
         modelButton.isEnabled =
             !busy
 
+        /*
+         * Preview remains disabled during local inference.
+         *
+         * This avoids WebView + llama memory use at the same time.
+         */
         previewButton.isEnabled =
             !busy
     }
@@ -2614,8 +2785,13 @@ $message
         text: String
     ) {
 
-        statusText.text =
-            text
+        if (
+            ::statusText.isInitialized
+        ) {
+
+            statusText.text =
+                text
+        }
     }
 
     private fun dp(
@@ -2636,13 +2812,43 @@ $message
 
     override fun onDestroy() {
 
-        tts?.stop()
-        tts?.shutdown()
+        try {
 
-        downloadExecutor.shutdownNow()
+            tts?.stop()
+            tts?.shutdown()
+
+        } catch (
+            _: Exception
+        ) {
+        }
+
+        /*
+         * Do not clear workspace build state here.
+         *
+         * If Android kills us while building, that state is
+         * intentionally used for recovery on the next launch.
+         */
+
+        try {
+
+            downloadExecutor.shutdownNow()
+
+        } catch (
+            _: Exception
+        ) {
+        }
 
         val model =
             llamaModel
+
+        llamaModel =
+            null
+
+        modelLoaded =
+            false
+
+        modelLoading =
+            false
 
         if (
             model != null
@@ -2667,12 +2873,6 @@ $message
 
             }.start()
         }
-
-        llamaModel =
-            null
-
-        modelLoaded =
-            false
 
         super.onDestroy()
     }
