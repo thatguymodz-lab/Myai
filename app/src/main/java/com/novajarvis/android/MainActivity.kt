@@ -1,6 +1,7 @@
 package com.novajarvis.android
 
 import android.Manifest
+import android.app.Dialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -10,6 +11,10 @@ import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
+import android.webkit.WebChromeClient
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.*
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
@@ -34,16 +39,27 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private lateinit var inputText: EditText
     private lateinit var statusText: TextView
     private lateinit var progressBar: ProgressBar
+
     private lateinit var sendButton: Button
     private lateinit var talkButton: Button
     private lateinit var modelButton: Button
+    private lateinit var buildButton: Button
+    private lateinit var previewButton: Button
+
+    private lateinit var workspace: ProjectWorkspace
+
+    private var builderMode = false
 
     private var tts: TextToSpeech? = null
 
-    private val downloadExecutor = Executors.newSingleThreadExecutor()
+    private val downloadExecutor =
+        Executors.newSingleThreadExecutor()
 
     private val prefs by lazy {
-        getSharedPreferences("jarvis_memory", MODE_PRIVATE)
+        getSharedPreferences(
+            "jarvis_memory",
+            MODE_PRIVATE
+        )
     }
 
     private val modelFile by lazy {
@@ -66,13 +82,10 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private var modelReady = false
     private var modelLoaded = false
 
-    /*
-     * Correct llama-android model type.
-     */
     private var llamaModel: LlamaModel? = null
 
     // ============================================================
-    // ACTIVITY RESULT / VOICE
+    // VOICE
     // ============================================================
 
     private val speechLauncher =
@@ -87,12 +100,16 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                         RecognizerIntent.EXTRA_RESULTS
                     )
 
-                val spokenText = results?.firstOrNull()
+                val spoken =
+                    results?.firstOrNull()
 
-                if (!spokenText.isNullOrBlank()) {
+                if (!spoken.isNullOrBlank()) {
 
-                    inputText.setText(spokenText)
-                    inputText.setSelection(spokenText.length)
+                    inputText.setText(spoken)
+
+                    inputText.setSelection(
+                        spoken.length
+                    )
 
                     sendMessage()
                 }
@@ -110,7 +127,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
             } else {
 
-                setStatus("MICROPHONE PERMISSION DENIED")
+                setStatus(
+                    "MICROPHONE PERMISSION DENIED"
+                )
 
                 addJarvisMessage(
                     "I need microphone permission before TALK can work."
@@ -122,11 +141,20 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     // CREATE
     // ============================================================
 
-    override fun onCreate(savedInstanceState: Bundle?) {
+    override fun onCreate(
+        savedInstanceState: Bundle?
+    ) {
 
         super.onCreate(savedInstanceState)
 
-        tts = TextToSpeech(this, this)
+        workspace =
+            ProjectWorkspace(this)
+
+        tts =
+            TextToSpeech(
+                this,
+                this
+            )
 
         buildInterface()
 
@@ -137,6 +165,17 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         addJarvisMessage(
             "JARVIS Android initialized."
         )
+
+        val current =
+            workspace.getCurrentProject()
+
+        if (current != null) {
+
+            addJarvisMessage(
+                "Project workspace restored: " +
+                    "${current.name} (${projectLabel(current.type)})."
+            )
+        }
 
         if (modelReady) {
 
@@ -152,23 +191,55 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     }
 
     // ============================================================
-    // USER INTERFACE
+    // UI
     // ============================================================
 
     private fun buildInterface() {
 
-        val background = Color.rgb(3, 10, 18)
-        val panel = Color.rgb(8, 20, 31)
-        val cyan = Color.rgb(0, 217, 255)
-        val white = Color.rgb(235, 248, 255)
-        val muted = Color.rgb(130, 170, 185)
+        val background =
+            Color.rgb(
+                3,
+                10,
+                18
+            )
+
+        val panel =
+            Color.rgb(
+                8,
+                20,
+                31
+            )
+
+        val cyan =
+            Color.rgb(
+                0,
+                217,
+                255
+            )
+
+        val white =
+            Color.rgb(
+                235,
+                248,
+                255
+            )
+
+        val muted =
+            Color.rgb(
+                130,
+                170,
+                185
+            )
 
         val root =
             LinearLayout(this).apply {
 
-                orientation = LinearLayout.VERTICAL
+                orientation =
+                    LinearLayout.VERTICAL
 
-                setBackgroundColor(background)
+                setBackgroundColor(
+                    background
+                )
 
                 setPadding(
                     dp(16),
@@ -181,12 +252,18 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         val title =
             TextView(this).apply {
 
-                text = "J A R V I S"
-                textSize = 28f
+                text =
+                    "J A R V I S"
 
-                setTextColor(cyan)
+                textSize =
+                    28f
 
-                gravity = Gravity.CENTER
+                setTextColor(
+                    cyan
+                )
+
+                gravity =
+                    Gravity.CENTER
 
                 setTypeface(
                     Typeface.DEFAULT,
@@ -204,12 +281,18 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         val subtitle =
             TextView(this).apply {
 
-                text = "PRIVATE ON-DEVICE AI"
-                textSize = 12f
+                text =
+                    "PRIVATE AI + WEB BUILDER"
 
-                setTextColor(muted)
+                textSize =
+                    12f
 
-                gravity = Gravity.CENTER
+                setTextColor(
+                    muted
+                )
+
+                gravity =
+                    Gravity.CENTER
 
                 setPadding(
                     0,
@@ -222,11 +305,19 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         statusText =
             TextView(this).apply {
 
-                text = "SYSTEM: STARTING"
-                textSize = 12f
+                text =
+                    "SYSTEM: STARTING"
 
-                setTextColor(cyan)
-                setBackgroundColor(panel)
+                textSize =
+                    12f
+
+                setTextColor(
+                    cyan
+                )
+
+                setBackgroundColor(
+                    panel
+                )
 
                 setPadding(
                     dp(12),
@@ -252,7 +343,10 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             ScrollView(this).apply {
 
                 isFillViewport = true
-                setBackgroundColor(panel)
+
+                setBackgroundColor(
+                    panel
+                )
             }
 
         chatText =
@@ -260,7 +354,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
                 textSize = 15f
 
-                setTextColor(white)
+                setTextColor(
+                    white
+                )
 
                 setPadding(
                     dp(14),
@@ -269,14 +365,11 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     dp(14)
                 )
 
-                setTextIsSelectable(true)
+                setTextIsSelectable(
+                    true
+                )
             }
 
-        /*
-         * FIX:
-         * ScrollView inherits from FrameLayout, so use
-         * FrameLayout.LayoutParams.
-         */
         scroll.addView(
             chatText,
             FrameLayout.LayoutParams(
@@ -288,11 +381,20 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         inputText =
             EditText(this).apply {
 
-                hint = "Ask Jarvis..."
+                hint =
+                    "Ask Jarvis..."
 
-                setHintTextColor(muted)
-                setTextColor(white)
-                setBackgroundColor(panel)
+                setHintTextColor(
+                    muted
+                )
+
+                setTextColor(
+                    white
+                )
+
+                setBackgroundColor(
+                    panel
+                )
 
                 setPadding(
                     dp(12),
@@ -301,14 +403,17 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     dp(12)
                 )
 
-                maxLines = 4
+                maxLines = 5
             }
 
-        val buttonRow =
+        val normalRow =
             LinearLayout(this).apply {
 
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER
+                orientation =
+                    LinearLayout.HORIZONTAL
+
+                gravity =
+                    Gravity.CENTER
             }
 
         talkButton =
@@ -332,38 +437,53 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 background
             )
 
-        buttonRow.addView(
-            talkButton,
-            LinearLayout.LayoutParams(
-                0,
-                dp(52),
-                1f
-            ).apply {
-                marginEnd = dp(6)
-            }
+        addWeightedButton(
+            normalRow,
+            talkButton
         )
 
-        buttonRow.addView(
-            sendButton,
-            LinearLayout.LayoutParams(
-                0,
-                dp(52),
-                1f
-            ).apply {
-                marginStart = dp(3)
-                marginEnd = dp(3)
-            }
+        addWeightedButton(
+            normalRow,
+            sendButton
         )
 
-        buttonRow.addView(
-            modelButton,
-            LinearLayout.LayoutParams(
-                0,
-                dp(52),
-                1f
-            ).apply {
-                marginStart = dp(6)
+        addWeightedButton(
+            normalRow,
+            modelButton
+        )
+
+        val builderRow =
+            LinearLayout(this).apply {
+
+                orientation =
+                    LinearLayout.HORIZONTAL
+
+                gravity =
+                    Gravity.CENTER
             }
+
+        buildButton =
+            makeButton(
+                "BUILD",
+                cyan,
+                background
+            )
+
+        previewButton =
+            makeButton(
+                "PREVIEW",
+                cyan,
+                background
+            )
+
+        addWeightedButton(
+            builderRow,
+            buildButton
+        )
+
+        addWeightedButton(
+            builderRow,
+            previewButton
         )
 
         root.addView(title)
@@ -376,7 +496,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(6)
             ).apply {
-                topMargin = dp(6)
+
+                topMargin =
+                    dp(6)
             }
         )
 
@@ -388,8 +510,11 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 1f
             ).apply {
 
-                topMargin = dp(10)
-                bottomMargin = dp(10)
+                topMargin =
+                    dp(10)
+
+                bottomMargin =
+                    dp(10)
             }
         )
 
@@ -399,11 +524,27 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                bottomMargin = dp(10)
+
+                bottomMargin =
+                    dp(8)
             }
         )
 
-        root.addView(buttonRow)
+        root.addView(
+            normalRow
+        )
+
+        root.addView(
+            builderRow,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(52)
+            ).apply {
+
+                topMargin =
+                    dp(6)
+            }
+        )
 
         setContentView(root)
 
@@ -413,6 +554,40 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
         talkButton.setOnClickListener {
             requestVoiceInput()
+        }
+
+        buildButton.setOnClickListener {
+
+            builderMode =
+                !builderMode
+
+            updateBuilderButton()
+
+            if (builderMode) {
+
+                addJarvisMessage(
+                    "Builder Mode enabled. " +
+                        "Tell me to create a website, a 2D game, or a 3D game."
+                )
+
+                setStatus(
+                    "BUILDER: READY"
+                )
+
+            } else {
+
+                addJarvisMessage(
+                    "Builder Mode disabled. Normal Jarvis chat restored."
+                )
+
+                setStatus(
+                    "SYSTEM: AI READY"
+                )
+            }
+        }
+
+        previewButton.setOnClickListener {
+            previewCurrentProject()
         }
 
         modelButton.setOnClickListener {
@@ -427,14 +602,38 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 }
 
                 modelReady -> {
+
                     loadLocalModel()
                 }
 
                 else -> {
+
                     downloadModel()
                 }
             }
         }
+    }
+
+    private fun addWeightedButton(
+        row: LinearLayout,
+        button: Button
+    ) {
+
+        row.addView(
+            button,
+            LinearLayout.LayoutParams(
+                0,
+                dp(52),
+                1f
+            ).apply {
+
+                marginStart =
+                    dp(3)
+
+                marginEnd =
+                    dp(3)
+            }
+        )
     }
 
     private fun makeButton(
@@ -447,8 +646,13 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
             text = label
 
-            setTextColor(textColor)
-            setBackgroundColor(backgroundColor)
+            setTextColor(
+                textColor
+            )
+
+            setBackgroundColor(
+                backgroundColor
+            )
 
             setTypeface(
                 Typeface.DEFAULT,
@@ -459,8 +663,21 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         }
     }
 
+    private fun updateBuilderButton() {
+
+        buildButton.text =
+            if (builderMode) {
+
+                "BUILD ✓"
+
+            } else {
+
+                "BUILD"
+            }
+    }
+
     // ============================================================
-    // CHAT
+    // MESSAGE ROUTING
     // ============================================================
 
     private fun sendMessage() {
@@ -476,9 +693,13 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
         inputText.setText("")
 
-        addUserMessage(message)
+        addUserMessage(
+            message
+        )
 
-        rememberLastUserMessage(message)
+        rememberLastUserMessage(
+            message
+        )
 
         if (!modelReady) {
 
@@ -502,16 +723,204 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             return
         }
 
-        generateAIResponse(message)
+        val isNewBuild =
+            workspace.isNewBuildRequest(
+                message
+            )
+
+        val isEdit =
+            workspace.isProjectEditRequest(
+                message
+            )
+
+        if (
+            builderMode ||
+            isNewBuild ||
+            isEdit
+        ) {
+
+            handleBuilderRequest(
+                message
+            )
+
+        } else {
+
+            generateAIResponse(
+                message
+            )
+        }
     }
 
     // ============================================================
-    // REAL LOCAL AI RESPONSE
+    // BUILDER
     // ============================================================
 
-    private fun generateAIResponse(message: String) {
+    private fun handleBuilderRequest(
+        message: String
+    ) {
 
-        val model = llamaModel
+        val explicitType =
+            workspace.detectProjectType(
+                message
+            )
+
+        val current =
+            workspace.getCurrentProject()
+
+        val newBuild =
+            workspace.isNewBuildRequest(
+                message
+            )
+
+        /*
+         * A clearly requested new project always gets its
+         * own isolated project folder.
+         */
+        if (newBuild) {
+
+            if (
+                explicitType ==
+                JarvisProjectType.UNKNOWN
+            ) {
+
+                addJarvisMessage(
+                    "Would you like me to build that as a WEBSITE, " +
+                        "2D GAME, or 3D GAME?"
+                )
+
+                setStatus(
+                    "BUILDER: PROJECT TYPE NEEDED"
+                )
+
+                builderMode = true
+
+                updateBuilderButton()
+
+                return
+            }
+
+            val name =
+                workspace.suggestedProjectName(
+                    message,
+                    explicitType
+                )
+
+            val project =
+                workspace.createProject(
+                    name,
+                    explicitType
+                )
+
+            builderMode = true
+
+            updateBuilderButton()
+
+            generateProject(
+                project = project,
+                userRequest = message,
+                editing = false
+            )
+
+            return
+        }
+
+        /*
+         * Follow-up changes stay attached to the currently
+         * selected project.
+         */
+        if (current != null) {
+
+            if (
+                explicitType !=
+                JarvisProjectType.UNKNOWN &&
+                explicitType != current.type
+            ) {
+
+                addJarvisMessage(
+                    "Your current project is a " +
+                        projectLabel(current.type) +
+                        ". You mentioned " +
+                        projectLabel(explicitType) +
+                        ". Say \"create a new ${projectLabel(explicitType)}\" " +
+                        "if you want a separate project. " +
+                        "I won't mix the two projects together."
+                )
+
+                setStatus(
+                    "BUILDER: TYPE PROTECTED"
+                )
+
+                return
+            }
+
+            builderMode = true
+
+            updateBuilderButton()
+
+            generateProject(
+                project = current,
+                userRequest = message,
+                editing = true
+            )
+
+            return
+        }
+
+        /*
+         * No current project exists.
+         */
+        if (
+            explicitType ==
+            JarvisProjectType.UNKNOWN
+        ) {
+
+            addJarvisMessage(
+                "Tell me whether you want a WEBSITE, " +
+                    "2D GAME, or 3D GAME."
+            )
+
+            builderMode = true
+
+            updateBuilderButton()
+
+            setStatus(
+                "BUILDER: PROJECT TYPE NEEDED"
+            )
+
+            return
+        }
+
+        val name =
+            workspace.suggestedProjectName(
+                message,
+                explicitType
+            )
+
+        val project =
+            workspace.createProject(
+                name,
+                explicitType
+            )
+
+        builderMode = true
+
+        updateBuilderButton()
+
+        generateProject(
+            project = project,
+            userRequest = message,
+            editing = false
+        )
+    }
+
+    private fun generateProject(
+        project: JarvisProject,
+        userRequest: String,
+        editing: Boolean
+    ) {
+
+        val model =
+            llamaModel
 
         if (model == null) {
 
@@ -524,8 +933,411 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             return
         }
 
-        sendButton.isEnabled = false
-        talkButton.isEnabled = false
+        setBusy(
+            true
+        )
+
+        setStatus(
+            if (editing) {
+                "BUILDER: UPDATING ${projectLabel(project.type)}"
+            } else {
+                "BUILDER: CREATING ${projectLabel(project.type)}"
+            }
+        )
+
+        addJarvisMessage(
+            if (editing) {
+
+                "Updating ${project.name}. I'll preserve its project type."
+
+            } else {
+
+                "Creating ${project.name} as a ${projectLabel(project.type)}."
+            }
+        )
+
+        lifecycleScope.launch {
+
+            try {
+
+                val prompt =
+                    if (editing) {
+
+                        workspace.createEditPrompt(
+                            project,
+                            userRequest
+                        )
+
+                    } else {
+
+                        """
+PROJECT NAME:
+${project.name}
+
+PROJECT TYPE:
+${project.type.name}
+
+USER REQUEST:
+$userRequest
+
+Create the complete project now.
+""".trimIndent()
+                    }
+
+                val result =
+                    withContext(
+                        Dispatchers.Default
+                    ) {
+
+                        Llama.complete(
+                            model,
+                            prompt = prompt,
+                            systemPrompt =
+                                workspace.builderSystemPrompt(
+                                    project.type
+                                ),
+                            maxTokens = 2048
+                        )
+                    }
+
+                val raw =
+                    result.text.trim()
+
+                val html =
+                    workspace.extractGeneratedHtml(
+                        raw
+                    )
+
+                if (html.isNullOrBlank()) {
+
+                    addJarvisMessage(
+                        "The builder didn't return a complete HTML project, " +
+                            "so I did not overwrite your project. " +
+                            "Try asking me to build it again with a little more detail."
+                    )
+
+                    setStatus(
+                        "BUILDER: OUTPUT INCOMPLETE"
+                    )
+
+                    return@launch
+                }
+
+                val problems =
+                    workspace.validateProject(
+                        project,
+                        html
+                    )
+
+                /*
+                 * Fatal structure problems are not saved.
+                 * This protects the last working project.
+                 */
+                val fatal =
+                    problems.any {
+                        it.contains(
+                            "Missing HTML",
+                            ignoreCase = true
+                        ) ||
+                            it.contains(
+                                "Missing BODY",
+                                ignoreCase = true
+                            ) ||
+                            it.contains(
+                                "Missing closing",
+                                ignoreCase = true
+                            )
+                    }
+
+                if (fatal) {
+
+                    addJarvisMessage(
+                        "I generated a project but validation found: " +
+                            problems.joinToString("; ") +
+                            ". I kept your previous version safe."
+                    )
+
+                    setStatus(
+                        "BUILDER: VALIDATION FAILED"
+                    )
+
+                    return@launch
+                }
+
+                workspace.saveMainFile(
+                    project,
+                    html
+                )
+
+                if (problems.isEmpty()) {
+
+                    addJarvisMessage(
+                        "${project.name} is built and saved. " +
+                            "Validation passed. Press PREVIEW to run it."
+                    )
+
+                    setStatus(
+                        "BUILDER: PROJECT READY"
+                    )
+
+                } else {
+
+                    addJarvisMessage(
+                        "${project.name} was saved, but I found " +
+                            problems.joinToString("; ") +
+                            ". You can ask me to fix those issues."
+                    )
+
+                    setStatus(
+                        "BUILDER: READY WITH WARNINGS"
+                    )
+                }
+
+                /*
+                 * Keep Builder Mode tied to this project so the
+                 * next request can be "add...", "fix...", etc.
+                 */
+                builderMode = true
+
+                updateBuilderButton()
+
+            } catch (e: Exception) {
+
+                addJarvisMessage(
+                    "Builder error: " +
+                        (
+                            e.message
+                                ?: "Unknown builder error"
+                            )
+                )
+
+                setStatus(
+                    "BUILDER: ERROR"
+                )
+
+            } finally {
+
+                setBusy(
+                    false
+                )
+            }
+        }
+    }
+
+    // ============================================================
+    // PREVIEW
+    // ============================================================
+
+    private fun previewCurrentProject() {
+
+        val project =
+            workspace.getCurrentProject()
+
+        if (project == null) {
+
+            addJarvisMessage(
+                "There isn't a current project to preview yet."
+            )
+
+            return
+        }
+
+        val html =
+            workspace.readMainFile(
+                project
+            )
+
+        if (html.isNullOrBlank()) {
+
+            addJarvisMessage(
+                "The current project doesn't have a finished index.html yet."
+            )
+
+            return
+        }
+
+        val dialog =
+            Dialog(this)
+
+        val root =
+            LinearLayout(this).apply {
+
+                orientation =
+                    LinearLayout.VERTICAL
+
+                setBackgroundColor(
+                    Color.BLACK
+                )
+            }
+
+        val topBar =
+            LinearLayout(this).apply {
+
+                orientation =
+                    LinearLayout.HORIZONTAL
+
+                gravity =
+                    Gravity.CENTER_VERTICAL
+
+                setPadding(
+                    dp(8),
+                    dp(6),
+                    dp(8),
+                    dp(6)
+                )
+            }
+
+        val title =
+            TextView(this).apply {
+
+                text =
+                    "${project.name} • ${projectLabel(project.type)}"
+
+                setTextColor(
+                    Color.WHITE
+                )
+
+                textSize =
+                    14f
+
+                setPadding(
+                    dp(8),
+                    0,
+                    dp(8),
+                    0
+                )
+            }
+
+        val close =
+            Button(this).apply {
+
+                text =
+                    "CLOSE"
+            }
+
+        topBar.addView(
+            title,
+            LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+            )
+        )
+
+        topBar.addView(
+            close,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                dp(48)
+            )
+        )
+
+        val webView =
+            WebView(this)
+
+        webView.settings.apply {
+
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            mediaPlaybackRequiresUserGesture = false
+
+            allowFileAccess = false
+            allowContentAccess = false
+        }
+
+        webView.webViewClient =
+            WebViewClient()
+
+        webView.webChromeClient =
+            WebChromeClient()
+
+        /*
+         * No Android JavaScript interface is exposed.
+         *
+         * Generated project JavaScript therefore runs only
+         * inside the preview WebView.
+         */
+        webView.loadDataWithBaseURL(
+            "https://jarvis.local/",
+            html,
+            "text/html",
+            "UTF-8",
+            null
+        )
+
+        root.addView(
+            topBar
+        )
+
+        root.addView(
+            webView,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            )
+        )
+
+        dialog.setContentView(
+            root
+        )
+
+        dialog.window?.setLayout(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
+
+        close.setOnClickListener {
+
+            webView.stopLoading()
+
+            webView.destroy()
+
+            dialog.dismiss()
+        }
+
+        dialog.setOnDismissListener {
+
+            try {
+                webView.stopLoading()
+                webView.destroy()
+            } catch (_: Exception) {
+            }
+        }
+
+        dialog.show()
+
+        dialog.window?.setLayout(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
+    }
+
+    // ============================================================
+    // NORMAL LOCAL AI
+    // ============================================================
+
+    private fun generateAIResponse(
+        message: String
+    ) {
+
+        val model =
+            llamaModel
+
+        if (model == null) {
+
+            modelLoaded = false
+
+            setStatus(
+                "SYSTEM: MODEL NOT LOADED"
+            )
+
+            return
+        }
+
+        setBusy(
+            true
+        )
 
         setStatus(
             "JARVIS: THINKING LOCALLY"
@@ -542,25 +1354,27 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     ).orEmpty()
 
                 val memoryContext =
-                    if (remembered.isBlank()) {
+                    if (
+                        remembered.isBlank()
+                    ) {
 
                         ""
 
                     } else {
 
                         """
-                        Previous user message:
-                        $remembered
-                        """.trimIndent()
+Previous user message:
+$remembered
+""".trimIndent()
                     }
 
                 val prompt =
                     """
-                    $memoryContext
+$memoryContext
 
-                    Current user message:
-                    $message
-                    """.trimIndent()
+Current user message:
+$message
+""".trimIndent()
 
                 val result =
                     withContext(
@@ -589,9 +1403,13 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
                 } else {
 
-                    addJarvisMessage(answer)
+                    addJarvisMessage(
+                        answer
+                    )
 
-                    speak(answer)
+                    speak(
+                        answer
+                    )
                 }
 
                 prefs.edit()
@@ -621,36 +1439,51 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
             } finally {
 
-                sendButton.isEnabled = true
-                talkButton.isEnabled = true
+                setBusy(
+                    false
+                )
             }
         }
     }
 
-    private fun addUserMessage(message: String) {
+    // ============================================================
+    // CHAT HELPERS
+    // ============================================================
+
+    private fun addUserMessage(
+        message: String
+    ) {
 
         appendChat(
             "\nYOU:\n$message\n"
         )
     }
 
-    private fun addJarvisMessage(message: String) {
+    private fun addJarvisMessage(
+        message: String
+    ) {
 
         appendChat(
             "\nJARVIS:\n$message\n"
         )
     }
 
-    private fun appendChat(message: String) {
+    private fun appendChat(
+        message: String
+    ) {
 
-        chatText.append(message)
+        chatText.append(
+            message
+        )
     }
 
     // ============================================================
-    // LOCAL MEMORY
+    // MEMORY
     // ============================================================
 
-    private fun rememberLastUserMessage(message: String) {
+    private fun rememberLastUserMessage(
+        message: String
+    ) {
 
         prefs.edit()
             .putString(
@@ -686,7 +1519,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             ContextCompat.checkSelfPermission(
                 this,
                 Manifest.permission.RECORD_AUDIO
-            ) == PackageManager.PERMISSION_GRANTED
+            ) ==
+            PackageManager.PERMISSION_GRANTED
         ) {
 
             startVoiceInput()
@@ -728,7 +1562,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 "JARVIS: LISTENING"
             )
 
-            speechLauncher.launch(intent)
+            speechLauncher.launch(
+                intent
+            )
 
         } catch (e: Exception) {
 
@@ -746,18 +1582,27 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     // TEXT TO SPEECH
     // ============================================================
 
-    override fun onInit(status: Int) {
+    override fun onInit(
+        status: Int
+    ) {
 
-        if (status == TextToSpeech.SUCCESS) {
+        if (
+            status ==
+            TextToSpeech.SUCCESS
+        ) {
 
             tts?.language =
                 Locale.getDefault()
 
-            tts?.setSpeechRate(1.0f)
+            tts?.setSpeechRate(
+                1.0f
+            )
         }
     }
 
-    private fun speak(text: String) {
+    private fun speak(
+        text: String
+    ) {
 
         tts?.speak(
             text,
@@ -768,14 +1613,15 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     }
 
     // ============================================================
-    // LOCAL LLAMA MODEL
+    // MODEL
     // ============================================================
 
     private fun checkModel() {
 
         modelReady =
             modelFile.exists() &&
-                modelFile.length() > 100_000_000L
+                modelFile.length() >
+                100_000_000L
 
         if (modelReady) {
 
@@ -812,8 +1658,14 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             return
         }
 
-        modelButton.isEnabled = false
-        sendButton.isEnabled = false
+        modelButton.isEnabled =
+            false
+
+        sendButton.isEnabled =
+            false
+
+        buildButton.isEnabled =
+            false
 
         setStatus(
             "SYSTEM: LOADING LOCAL AI"
@@ -837,7 +1689,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                                 modelFile.absolutePath,
                             config =
                                 LlamaConfig(
-                                    contextSize = 2048,
+                                    contextSize = 4096,
                                     threads =
                                         Runtime
                                             .getRuntime()
@@ -850,27 +1702,31 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                         )
                     }
 
-                /*
-                 * loadedModel is LlamaModel.
-                 */
-                llamaModel = loadedModel
+                llamaModel =
+                    loadedModel
 
-                modelLoaded = true
+                modelLoaded =
+                    true
 
-                modelButton.text = "AI ✓"
+                modelButton.text =
+                    "AI ✓"
 
                 setStatus(
                     "SYSTEM: AI READY"
                 )
 
                 addJarvisMessage(
-                    "Local AI loaded successfully. I'm ready."
+                    "Local AI loaded successfully. " +
+                        "Chat and Builder Mode are ready."
                 )
 
             } catch (e: Exception) {
 
-                llamaModel = null
-                modelLoaded = false
+                llamaModel =
+                    null
+
+                modelLoaded =
+                    false
 
                 modelButton.text =
                     "LOAD AI"
@@ -889,8 +1745,14 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
             } finally {
 
-                modelButton.isEnabled = true
-                sendButton.isEnabled = true
+                modelButton.isEnabled =
+                    true
+
+                sendButton.isEnabled =
+                    true
+
+                buildButton.isEnabled =
+                    true
             }
         }
     }
@@ -901,12 +1763,14 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
     private fun downloadModel() {
 
-        modelButton.isEnabled = false
+        modelButton.isEnabled =
+            false
 
         progressBar.visibility =
             View.VISIBLE
 
-        progressBar.progress = 0
+        progressBar.progress =
+            0
 
         setStatus(
             "MODEL: CONNECTING"
@@ -921,12 +1785,18 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
             try {
 
-                modelFile.parentFile?.mkdirs()
+                modelFile.parentFile
+                    ?.mkdirs()
 
                 var downloaded =
-                    if (partialModelFile.exists()) {
+                    if (
+                        partialModelFile.exists()
+                    ) {
+
                         partialModelFile.length()
+
                     } else {
+
                         0L
                     }
 
@@ -938,31 +1808,33 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 var responseCode =
                     connection.responseCode
 
-                /*
-                 * If a partial file exists but the server does not
-                 * support Range requests, restart cleanly.
-                 */
                 if (
                     downloaded > 0L &&
-                    responseCode != HttpURLConnection.HTTP_PARTIAL
+                    responseCode !=
+                    HttpURLConnection.HTTP_PARTIAL
                 ) {
 
                     connection.disconnect()
 
                     partialModelFile.delete()
 
-                    downloaded = 0L
+                    downloaded =
+                        0L
 
                     connection =
-                        createModelConnection(0L)
+                        createModelConnection(
+                            0L
+                        )
 
                     responseCode =
                         connection.responseCode
                 }
 
                 if (
-                    responseCode != HttpURLConnection.HTTP_OK &&
-                    responseCode != HttpURLConnection.HTTP_PARTIAL
+                    responseCode !=
+                    HttpURLConnection.HTTP_OK &&
+                    responseCode !=
+                    HttpURLConnection.HTTP_PARTIAL
                 ) {
 
                     connection.disconnect()
@@ -982,19 +1854,22 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                         contentLength > 0L
                     ) {
 
-                        downloaded + contentLength
+                        downloaded +
+                            contentLength
 
                     } else {
 
                         contentLength
                     }
 
-                connection.inputStream.use { input ->
+                connection.inputStream.use {
+                        input ->
 
                     RandomAccessFile(
                         partialModelFile,
                         "rw"
-                    ).use { output ->
+                    ).use {
+                            output ->
 
                         if (
                             responseCode ==
@@ -1002,11 +1877,15 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                             downloaded > 0L
                         ) {
 
-                            output.seek(downloaded)
+                            output.seek(
+                                downloaded
+                            )
 
                         } else {
 
-                            output.setLength(0L)
+                            output.setLength(
+                                0L
+                            )
                         }
 
                         val buffer =
@@ -1023,9 +1902,13 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                         while (true) {
 
                             val bytesRead =
-                                input.read(buffer)
+                                input.read(
+                                    buffer
+                                )
 
-                            if (bytesRead < 0) {
+                            if (
+                                bytesRead < 0
+                            ) {
                                 break
                             }
 
@@ -1035,19 +1918,26 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                                 bytesRead
                             )
 
-                            current += bytesRead
+                            current +=
+                                bytesRead
 
                             val now =
                                 System.currentTimeMillis()
 
                             if (
-                                now - lastUiUpdate >= 250L
+                                now -
+                                lastUiUpdate >=
+                                250L
                             ) {
 
-                                lastUiUpdate = now
+                                lastUiUpdate =
+                                    now
 
                                 val percent =
-                                    if (totalBytes > 0L) {
+                                    if (
+                                        totalBytes >
+                                        0L
+                                    ) {
 
                                         (
                                             current *
@@ -1083,7 +1973,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
                 if (
                     !partialModelFile.exists() ||
-                    partialModelFile.length() <= 100_000_000L
+                    partialModelFile.length() <=
+                    100_000_000L
                 ) {
 
                     throw IllegalStateException(
@@ -1091,7 +1982,10 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     )
                 }
 
-                if (modelFile.exists()) {
+                if (
+                    modelFile.exists()
+                ) {
+
                     modelFile.delete()
                 }
 
@@ -1127,10 +2021,6 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                         "Local AI model downloaded successfully."
                     )
 
-                    /*
-                     * Automatically load the model when
-                     * downloading finishes.
-                     */
                     loadLocalModel()
                 }
 
@@ -1167,15 +2057,21 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     ): HttpURLConnection {
 
         return (
-            URL(MODEL_URL)
+            URL(
+                MODEL_URL
+            )
                 .openConnection()
                 as HttpURLConnection
             ).apply {
 
-                connectTimeout = 20_000
-                readTimeout = 60_000
+                connectTimeout =
+                    20_000
 
-                instanceFollowRedirects = true
+                readTimeout =
+                    60_000
+
+                instanceFollowRedirects =
+                    true
 
                 setRequestProperty(
                     "Accept-Encoding",
@@ -1187,7 +2083,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     "Jarvis-Android"
                 )
 
-                if (downloaded > 0L) {
+                if (
+                    downloaded > 0L
+                ) {
 
                     setRequestProperty(
                         "Range",
@@ -1203,12 +2101,54 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     // HELPERS
     // ============================================================
 
-    private fun setStatus(text: String) {
+    private fun projectLabel(
+        type: JarvisProjectType
+    ): String {
 
-        statusText.text = text
+        return when (type) {
+
+            JarvisProjectType.WEBSITE ->
+                "WEBSITE"
+
+            JarvisProjectType.GAME_2D ->
+                "2D GAME"
+
+            JarvisProjectType.GAME_3D ->
+                "3D GAME"
+
+            JarvisProjectType.UNKNOWN ->
+                "PROJECT"
+        }
     }
 
-    private fun dp(value: Int): Int {
+    private fun setBusy(
+        busy: Boolean
+    ) {
+
+        sendButton.isEnabled =
+            !busy
+
+        talkButton.isEnabled =
+            !busy
+
+        buildButton.isEnabled =
+            !busy
+
+        modelButton.isEnabled =
+            !busy
+    }
+
+    private fun setStatus(
+        text: String
+    ) {
+
+        statusText.text =
+            text
+    }
+
+    private fun dp(
+        value: Int
+    ): Int {
 
         return (
             value *
@@ -1229,31 +2169,33 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
         downloadExecutor.shutdownNow()
 
-        val model = llamaModel
+        val model =
+            llamaModel
 
         if (model != null) {
 
-            /*
-             * releaseModel expects LlamaModel.
-             */
             Thread {
 
                 try {
 
                     kotlinx.coroutines.runBlocking {
 
-                        Llama.releaseModel(model)
+                        Llama.releaseModel(
+                            model
+                        )
                     }
 
                 } catch (_: Exception) {
-                    // App is already closing.
                 }
 
             }.start()
         }
 
-        llamaModel = null
-        modelLoaded = false
+        llamaModel =
+            null
+
+        modelLoaded =
+            false
 
         super.onDestroy()
     }
