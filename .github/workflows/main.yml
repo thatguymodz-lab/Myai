@@ -20,10 +20,14 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Accept Android SDK licenses
+      - name: Prepare Android SDK
+        shell: bash
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          echo "Using Android SDK at: $ANDROID_HOME"
+          "$SDKMANAGER" --version
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -103,7 +107,6 @@ jobs:
                   platform("androidx.compose:compose-bom:2025.08.01")
 
               implementation(composeBom)
-              androidTestImplementation(composeBom)
 
               implementation(
                   "androidx.activity:activity-compose:1.10.1"
@@ -163,7 +166,6 @@ jobs:
 
           cat > app/src/main/res/values/styles.xml <<'EOF'
           <resources>
-
               <style
                   name="Theme.Jarvis"
                   parent="android:style/Theme.Material.NoActionBar">
@@ -185,7 +187,6 @@ jobs:
                   </item>
 
               </style>
-
           </resources>
           EOF
 
@@ -206,10 +207,7 @@ jobs:
           import androidx.compose.ui.unit.dp
 
           class MainActivity : ComponentActivity() {
-
-              override fun onCreate(
-                  savedInstanceState: Bundle?
-              ) {
+              override fun onCreate(savedInstanceState: Bundle?) {
                   super.onCreate(savedInstanceState)
 
                   setContent {
@@ -224,136 +222,4 @@ jobs:
           )
 
           @Composable
-          fun JarvisApp() {
-
-              val background = Color(0xFF030A12)
-              val cyan = Color(0xFF42D9FF)
-
-              var input by remember {
-                  mutableStateOf("")
-              }
-
-              val messages = remember {
-                  mutableStateListOf(
-                      Msg(
-                          "JARVIS",
-                          "Android core ready. Local AI is the next module."
-                      )
-                  )
-              }
-
-              MaterialTheme(
-                  colorScheme = darkColorScheme(
-                      primary = cyan,
-                      background = background,
-                      surface = Color(0xFF071522)
-                  )
-              ) {
-
-                  Column(
-                      Modifier
-                          .fillMaxSize()
-                          .background(background)
-                          .padding(16.dp)
-                  ) {
-
-                      Text(
-                          "JARVIS // ANDROID LITE",
-                          color = cyan,
-                          style =
-                              MaterialTheme.typography.headlineSmall
-                      )
-
-                      Text(
-                          "FAST • TALK • LOCAL-FIRST",
-                          color = Color.LightGray
-                      )
-
-                      Spacer(
-                          Modifier.height(12.dp)
-                      )
-
-                      LazyColumn(
-                          Modifier
-                              .weight(1f)
-                              .fillMaxWidth()
-                      ) {
-
-                          items(messages) { message ->
-
-                              Text(
-                                  "${message.who}: ${message.text}",
-                                  color =
-                                      if (message.who == "YOU")
-                                          Color.White
-                                      else
-                                          cyan,
-                                  modifier =
-                                      Modifier.padding(
-                                          vertical = 7.dp
-                                      )
-                              )
-                          }
-                      }
-
-                      Row(
-                          Modifier.fillMaxWidth()
-                      ) {
-
-                          OutlinedTextField(
-                              value = input,
-                              onValueChange = {
-                                  input = it
-                              },
-                              modifier =
-                                  Modifier.weight(1f),
-                              label = {
-                                  Text("Talk to Jarvis")
-                              }
-                          )
-
-                          Spacer(
-                              Modifier.width(8.dp)
-                          )
-
-                          Button(
-                              onClick = {
-
-                                  val question =
-                                      input.trim()
-
-                                  if (question.isNotEmpty()) {
-
-                                      messages +=
-                                          Msg(
-                                              "YOU",
-                                              question
-                                          )
-
-                                      messages +=
-                                          Msg(
-                                              "JARVIS",
-                                              "I received that. Offline AI model support is coming next."
-                                          )
-
-                                      input = ""
-                                  }
-                              }
-                          ) {
-                              Text("TALK")
-                          }
-                      }
-                  }
-              }
-          }
-          EOF
-
-      - name: Build Jarvis APK
-        run: gradle --no-daemon assembleDebug
-
-      - name: Upload Jarvis APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Jarvis-Android-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+          fun
