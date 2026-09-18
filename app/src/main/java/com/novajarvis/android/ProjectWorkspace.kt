@@ -26,15 +26,55 @@ class ProjectWorkspace(
 ) {
 
     companion object {
-        private const val PREFS_NAME = "jarvis_builder"
-        private const val CURRENT_PROJECT_ID = "current_project_id"
-        private const val CURRENT_PROJECT_TYPE = "current_project_type"
-        private const val CURRENT_PROJECT_NAME = "current_project_name"
-        private const val PROJECT_INFO_FILE = "jarvis.project"
-        private const val INDEX_FILE = "index.html"
+
+        private const val PREFS_NAME =
+            "jarvis_builder"
+
+        // Project currently being built / edited
+        private const val CURRENT_PROJECT_ID =
+            "current_project_id"
+
+        private const val CURRENT_PROJECT_TYPE =
+            "current_project_type"
+
+        private const val CURRENT_PROJECT_NAME =
+            "current_project_name"
+
+        // Last project that successfully passed validation
+        private const val PREVIEW_PROJECT_ID =
+            "preview_project_id"
+
+        private const val PREVIEW_PROJECT_TYPE =
+            "preview_project_type"
+
+        private const val PREVIEW_PROJECT_NAME =
+            "preview_project_name"
+
+        // Build recovery
+        private const val BUILD_IN_PROGRESS =
+            "build_in_progress"
+
+        private const val BUILD_PROJECT_ID =
+            "build_project_id"
+
+        private const val BUILD_PROJECT_TYPE =
+            "build_project_type"
+
+        private const val BUILD_PROJECT_NAME =
+            "build_project_name"
+
+        private const val PROJECT_INFO_FILE =
+            "jarvis.project"
+
+        private const val INDEX_FILE =
+            "index.html"
+
+        private const val TEMP_INDEX_FILE =
+            "index.html.tmp"
     }
 
     private val prefs by lazy {
+
         context.getSharedPreferences(
             PREFS_NAME,
             Context.MODE_PRIVATE
@@ -42,16 +82,18 @@ class ProjectWorkspace(
     }
 
     private val projectsRoot by lazy {
+
         File(
             context.filesDir,
             "jarvis_projects"
         ).apply {
+
             mkdirs()
         }
     }
 
     // ============================================================
-    // PROJECT TYPE DETECTION
+    // PROJECT TYPE
     // ============================================================
 
     fun detectProjectType(
@@ -59,55 +101,80 @@ class ProjectWorkspace(
     ): JarvisProjectType {
 
         val text =
-            request.lowercase(Locale.getDefault()).trim()
+            request
+                .lowercase(
+                    Locale.getDefault()
+                )
+                .trim()
 
-        val explicit3D = listOf(
-            "3d game",
-            "3-d game",
-            "three dimensional game",
-            "three-dimensional game",
-            "webgl game",
-            "three.js game",
-            "threejs game"
-        )
+        val explicit3D =
+            listOf(
+                "3d game",
+                "3-d game",
+                "three dimensional game",
+                "three-dimensional game",
+                "webgl game",
+                "three.js game",
+                "threejs game"
+            )
 
-        val explicit2D = listOf(
-            "2d game",
-            "2-d game",
-            "two dimensional game",
-            "two-dimensional game",
-            "canvas game",
-            "platformer",
-            "platform game",
-            "top down game",
-            "top-down game",
-            "side scroller",
-            "side-scroller"
-        )
+        val explicit2D =
+            listOf(
+                "2d game",
+                "2-d game",
+                "two dimensional game",
+                "two-dimensional game",
+                "canvas game",
+                "platformer",
+                "platform game",
+                "top down game",
+                "top-down game",
+                "side scroller",
+                "side-scroller"
+            )
 
-        if (explicit3D.any { text.contains(it) }) {
+        if (
+            explicit3D.any {
+                text.contains(it)
+            }
+        ) {
+
             return JarvisProjectType.GAME_3D
         }
 
-        if (explicit2D.any { text.contains(it) }) {
+        if (
+            explicit2D.any {
+                text.contains(it)
+            }
+        ) {
+
             return JarvisProjectType.GAME_2D
         }
 
-        if (text.contains("game")) {
+        if (
+            text.contains("game")
+        ) {
+
             return JarvisProjectType.UNKNOWN
         }
 
-        val websites = listOf(
-            "website",
-            "web site",
-            "webpage",
-            "web page",
-            "landing page",
-            "portfolio site",
-            "business site"
-        )
+        val websites =
+            listOf(
+                "website",
+                "web site",
+                "webpage",
+                "web page",
+                "landing page",
+                "portfolio site",
+                "business site"
+            )
 
-        if (websites.any { text.contains(it) }) {
+        if (
+            websites.any {
+                text.contains(it)
+            }
+        ) {
+
             return JarvisProjectType.WEBSITE
         }
 
@@ -123,175 +190,209 @@ class ProjectWorkspace(
     ): Boolean {
 
         val text =
-            request.lowercase(Locale.getDefault()).trim()
+            request
+                .lowercase(
+                    Locale.getDefault()
+                )
+                .trim()
 
         val current =
             getCurrentProject()
 
-        /*
-         * Explicit NEW instructions take priority.
-         */
-        val explicitNew = listOf(
-            "create a new",
-            "create another",
-            "build a new",
-            "build another",
-            "make a new",
-            "make another",
-            "start a new",
-            "start another",
-            "new website",
-            "new web site",
-            "new 2d game",
-            "new 3d game",
-            "another website",
-            "another 2d game",
-            "another 3d game",
-            "separate website",
-            "separate game",
-            "separate project"
-        )
+        val explicitNew =
+            listOf(
+                "create a new",
+                "create another",
+                "build a new",
+                "build another",
+                "make a new",
+                "make another",
+                "start a new",
+                "start another",
+                "new website",
+                "new web site",
+                "new 2d game",
+                "new 3d game",
+                "another website",
+                "another 2d game",
+                "another 3d game",
+                "separate website",
+                "separate game",
+                "separate project"
+            )
 
         if (
             current != null &&
-            explicitNew.any { text.contains(it) }
+            explicitNew.any {
+                text.contains(it)
+            }
         ) {
+
             return true
         }
 
-        val editIndicators = listOf(
-            "current website",
-            "current web site",
-            "current webpage",
-            "current web page",
-            "current game",
-            "current project",
-            "existing website",
-            "existing game",
-            "existing project",
-            "this website",
-            "this game",
-            "this project",
-            "my website",
-            "my game",
-            "my project",
-            "improve",
-            "update",
-            "edit",
-            "modify",
-            "fix",
-            "continue",
-            "upgrade",
-            "change",
-            "add to",
-            "remove from"
-        )
+        val editIndicators =
+            listOf(
+                "current website",
+                "current web site",
+                "current webpage",
+                "current web page",
+                "current game",
+                "current project",
+                "existing website",
+                "existing game",
+                "existing project",
+                "this website",
+                "this game",
+                "this project",
+                "my website",
+                "my game",
+                "my project",
+                "improve",
+                "update",
+                "edit",
+                "modify",
+                "fix",
+                "continue",
+                "upgrade",
+                "change",
+                "add to",
+                "remove from"
+            )
 
         if (
             current != null &&
-            editIndicators.any { text.contains(it) }
+            editIndicators.any {
+                text.contains(it)
+            }
         ) {
+
             return false
         }
 
-        if (current != null) {
+        if (
+            current != null
+        ) {
+
             return false
         }
 
-        val creationWords = listOf(
-            "build",
-            "create",
-            "make",
-            "develop",
-            "generate",
-            "start"
-        )
+        val creationWords =
+            listOf(
+                "build",
+                "create",
+                "make",
+                "develop",
+                "generate",
+                "start"
+            )
 
-        val projectWords = listOf(
-            "website",
-            "web site",
-            "webpage",
-            "web page",
-            "game",
-            "2d",
-            "3d",
-            "three.js",
-            "threejs",
-            "webgl"
-        )
+        val projectWords =
+            listOf(
+                "website",
+                "web site",
+                "webpage",
+                "web page",
+                "game",
+                "2d",
+                "3d",
+                "three.js",
+                "threejs",
+                "webgl"
+            )
 
         return creationWords.any {
             text.contains(it)
-        } && projectWords.any {
-            text.contains(it)
-        }
+        } &&
+            projectWords.any {
+                text.contains(it)
+            }
     }
 
     fun isProjectEditRequest(
         request: String
     ): Boolean {
 
-        if (getCurrentProject() == null) {
+        if (
+            getCurrentProject() == null
+        ) {
+
             return false
         }
 
         val text =
-            request.lowercase(Locale.getDefault()).trim()
+            request
+                .lowercase(
+                    Locale.getDefault()
+                )
+                .trim()
 
-        val explicitNew = listOf(
-            "create a new",
-            "create another",
-            "build a new",
-            "build another",
-            "make a new",
-            "make another",
-            "start a new",
-            "start another",
-            "new website",
-            "new 2d game",
-            "new 3d game",
-            "another website",
-            "another 2d game",
-            "another 3d game",
-            "separate project"
-        )
+        val explicitNew =
+            listOf(
+                "create a new",
+                "create another",
+                "build a new",
+                "build another",
+                "make a new",
+                "make another",
+                "start a new",
+                "start another",
+                "new website",
+                "new 2d game",
+                "new 3d game",
+                "another website",
+                "another 2d game",
+                "another 3d game",
+                "separate project"
+            )
 
-        if (explicitNew.any { text.contains(it) }) {
+        if (
+            explicitNew.any {
+                text.contains(it)
+            }
+        ) {
+
             return false
         }
 
-        val editWords = listOf(
-            "change",
-            "edit",
-            "update",
-            "improve",
-            "fix",
-            "add",
-            "remove",
-            "continue",
-            "upgrade",
-            "replace",
-            "increase",
-            "decrease",
-            "bigger",
-            "smaller",
-            "faster",
-            "slower",
-            "better",
-            "more",
-            "less",
-            "make it",
-            "make the",
-            "make this",
-            "give it",
-            "put",
-            "move",
-            "resize",
-            "rework",
-            "redesign"
-        )
+        val editWords =
+            listOf(
+                "change",
+                "edit",
+                "update",
+                "improve",
+                "fix",
+                "add",
+                "remove",
+                "continue",
+                "upgrade",
+                "replace",
+                "increase",
+                "decrease",
+                "bigger",
+                "smaller",
+                "faster",
+                "slower",
+                "better",
+                "more",
+                "less",
+                "make it",
+                "make the",
+                "make this",
+                "give it",
+                "put",
+                "move",
+                "resize",
+                "rework",
+                "redesign"
+            )
 
-        if (editWords.any { text.contains(it) }) {
+        if (
+            editWords.any {
+                text.contains(it)
+            }
+        ) {
+
             return true
         }
 
@@ -306,6 +407,7 @@ class ProjectWorkspace(
             "my website",
             "my game"
         ).any {
+
             text.contains(it)
         }
     }
@@ -319,23 +421,23 @@ class ProjectWorkspace(
         type: JarvisProjectType
     ): JarvisProject {
 
-        require(type != JarvisProjectType.UNKNOWN)
+        require(
+            type != JarvisProjectType.UNKNOWN
+        )
 
         val safeName =
-            sanitizeProjectName(requestedName)
+            sanitizeProjectName(
+                requestedName
+            )
 
         val id =
-            UUID.randomUUID()
+            UUID
+                .randomUUID()
                 .toString()
                 .take(8)
 
         val typeFolder =
-            when (type) {
-                JarvisProjectType.WEBSITE -> "websites"
-                JarvisProjectType.GAME_2D -> "games_2d"
-                JarvisProjectType.GAME_3D -> "games_3d"
-                JarvisProjectType.UNKNOWN -> "unknown"
-            }
+            typeFolder(type)
 
         val directory =
             File(
@@ -343,7 +445,15 @@ class ProjectWorkspace(
                 "$typeFolder/${safeName}_$id"
             )
 
-        directory.mkdirs()
+        if (
+            !directory.exists() &&
+            !directory.mkdirs()
+        ) {
+
+            throw IllegalStateException(
+                "Could not create project directory"
+            )
+        }
 
         File(
             directory,
@@ -358,49 +468,87 @@ class ProjectWorkspace(
                 directory = directory
             )
 
-        writeProjectInfo(project)
-        setCurrentProject(project)
+        writeProjectInfo(
+            project
+        )
 
         /*
-         * Give every game a guaranteed working starting point.
+         * CURRENT means:
+         *
+         * This is the project JARVIS is currently working on.
+         *
+         * It does NOT automatically mean Preview should open it.
+         */
+        setCurrentProject(
+            project
+        )
+
+        /*
+         * Games get an immediate verified foundation.
+         *
+         * Websites do NOT become previewable until generation,
+         * validation and save have completed successfully.
          */
         when (type) {
 
             JarvisProjectType.GAME_2D -> {
 
-                File(
-                    directory,
-                    INDEX_FILE
-                ).writeText(
+                val foundation =
                     create2DGameFoundation(
-                        displayName(safeName)
+                        displayName(
+                            safeName
+                        )
                     )
+
+                saveMainFileAtomic(
+                    project,
+                    foundation,
+                    makePreviewable = true
                 )
             }
 
             JarvisProjectType.GAME_3D -> {
 
-                File(
-                    directory,
-                    INDEX_FILE
-                ).writeText(
+                val foundation =
                     create3DGameFoundation(
-                        displayName(safeName)
+                        displayName(
+                            safeName
+                        )
                     )
+
+                saveMainFileAtomic(
+                    project,
+                    foundation,
+                    makePreviewable = true
                 )
             }
 
-            else -> Unit
+            JarvisProjectType.WEBSITE -> {
+
+                /*
+                 * Deliberately no index.html yet.
+                 *
+                 * This prevents an unfinished website from
+                 * replacing the last successful preview.
+                 */
+            }
+
+            JarvisProjectType.UNKNOWN -> Unit
         }
 
         return project
     }
 
+    // ============================================================
+    // CURRENT PROJECT
+    // ============================================================
+
     fun setCurrentProject(
         project: JarvisProject
     ) {
 
-        prefs.edit()
+        prefs
+            .edit()
             .putString(
                 CURRENT_PROJECT_ID,
                 project.id
@@ -419,28 +567,295 @@ class ProjectWorkspace(
     fun getCurrentProject():
         JarvisProject? {
 
+        return projectFromPreferences(
+            CURRENT_PROJECT_ID,
+            CURRENT_PROJECT_TYPE,
+            CURRENT_PROJECT_NAME
+        )
+    }
+
+    // ============================================================
+    // VERIFIED PREVIEW PROJECT
+    // ============================================================
+
+    fun setPreviewProject(
+        project: JarvisProject
+    ) {
+
+        val html =
+            readMainFile(
+                project
+            )
+
+        if (
+            html.isNullOrBlank()
+        ) {
+
+            return
+        }
+
+        val fatal =
+            validateProject(
+                project,
+                html
+            ).any {
+
+                isFatalValidationProblem(
+                    it
+                )
+            }
+
+        if (fatal) {
+
+            return
+        }
+
+        prefs
+            .edit()
+            .putString(
+                PREVIEW_PROJECT_ID,
+                project.id
+            )
+            .putString(
+                PREVIEW_PROJECT_TYPE,
+                project.type.name
+            )
+            .putString(
+                PREVIEW_PROJECT_NAME,
+                project.name
+            )
+            .apply()
+    }
+
+    fun getPreviewProject():
+        JarvisProject? {
+
+        val project =
+            projectFromPreferences(
+                PREVIEW_PROJECT_ID,
+                PREVIEW_PROJECT_TYPE,
+                PREVIEW_PROJECT_NAME
+            ) ?: return null
+
+        val html =
+            readMainFile(
+                project
+            ) ?: return null
+
+        if (
+            html.isBlank()
+        ) {
+
+            return null
+        }
+
+        val fatal =
+            validateProject(
+                project,
+                html
+            ).any {
+
+                isFatalValidationProblem(
+                    it
+                )
+            }
+
+        return if (fatal) {
+
+            null
+
+        } else {
+
+            project
+        }
+    }
+
+    fun markProjectVerified(
+        project: JarvisProject
+    ): Boolean {
+
+        val html =
+            readMainFile(
+                project
+            ) ?: return false
+
+        val fatal =
+            validateProject(
+                project,
+                html
+            ).any {
+
+                isFatalValidationProblem(
+                    it
+                )
+            }
+
+        if (fatal) {
+
+            return false
+        }
+
+        setCurrentProject(
+            project
+        )
+
+        setPreviewProject(
+            project
+        )
+
+        return true
+    }
+
+    // ============================================================
+    // BUILD SESSION / CRASH RECOVERY
+    // ============================================================
+
+    fun beginBuild(
+        project: JarvisProject
+    ) {
+
+        /*
+         * commit() is intentional here.
+         *
+         * Build state should reach disk immediately before
+         * expensive local inference starts.
+         */
+        prefs
+            .edit()
+            .putBoolean(
+                BUILD_IN_PROGRESS,
+                true
+            )
+            .putString(
+                BUILD_PROJECT_ID,
+                project.id
+            )
+            .putString(
+                BUILD_PROJECT_TYPE,
+                project.type.name
+            )
+            .putString(
+                BUILD_PROJECT_NAME,
+                project.name
+            )
+            .commit()
+    }
+
+    fun finishBuild(
+        project: JarvisProject,
+        successful: Boolean
+    ) {
+
+        if (successful) {
+
+            markProjectVerified(
+                project
+            )
+        }
+
+        prefs
+            .edit()
+            .putBoolean(
+                BUILD_IN_PROGRESS,
+                false
+            )
+            .remove(
+                BUILD_PROJECT_ID
+            )
+            .remove(
+                BUILD_PROJECT_TYPE
+            )
+            .remove(
+                BUILD_PROJECT_NAME
+            )
+            .commit()
+    }
+
+    fun wasBuildInterrupted():
+        Boolean {
+
+        return prefs.getBoolean(
+            BUILD_IN_PROGRESS,
+            false
+        )
+    }
+
+    fun getInterruptedProject():
+        JarvisProject? {
+
+        if (
+            !wasBuildInterrupted()
+        ) {
+
+            return null
+        }
+
+        return projectFromPreferences(
+            BUILD_PROJECT_ID,
+            BUILD_PROJECT_TYPE,
+            BUILD_PROJECT_NAME
+        )
+    }
+
+    fun clearInterruptedBuild() {
+
+        prefs
+            .edit()
+            .putBoolean(
+                BUILD_IN_PROGRESS,
+                false
+            )
+            .remove(
+                BUILD_PROJECT_ID
+            )
+            .remove(
+                BUILD_PROJECT_TYPE
+            )
+            .remove(
+                BUILD_PROJECT_NAME
+            )
+            .commit()
+    }
+
+    // ============================================================
+    // FIND PROJECT
+    // ============================================================
+
+    private fun projectFromPreferences(
+        idKey: String,
+        typeKey: String,
+        nameKey: String
+    ): JarvisProject? {
+
         val id =
             prefs.getString(
-                CURRENT_PROJECT_ID,
+                idKey,
                 null
             ) ?: return null
 
         val typeName =
             prefs.getString(
-                CURRENT_PROJECT_TYPE,
+                typeKey,
                 null
             ) ?: return null
 
         val name =
             prefs.getString(
-                CURRENT_PROJECT_NAME,
+                nameKey,
                 null
             ) ?: return null
 
         val type =
             try {
-                JarvisProjectType.valueOf(typeName)
-            } catch (_: Exception) {
+
+                JarvisProjectType.valueOf(
+                    typeName
+                )
+
+            } catch (
+                _: Exception
+            ) {
+
                 return null
             }
 
@@ -457,34 +872,57 @@ class ProjectWorkspace(
         name: String
     ): JarvisProject? {
 
-        val folder =
-            when (type) {
-                JarvisProjectType.WEBSITE -> "websites"
-                JarvisProjectType.GAME_2D -> "games_2d"
-                JarvisProjectType.GAME_3D -> "games_3d"
-                JarvisProjectType.UNKNOWN -> return null
-            }
+        if (
+            type ==
+            JarvisProjectType.UNKNOWN
+        ) {
+
+            return null
+        }
 
         val directory =
             File(
                 projectsRoot,
-                "$folder/${name}_$id"
+                "${typeFolder(type)}/${name}_$id"
             )
 
-        if (!directory.exists()) {
+        if (
+            !directory.exists()
+        ) {
+
             return null
         }
 
         return JarvisProject(
-            id,
-            name,
-            type,
-            directory
+            id = id,
+            name = name,
+            type = type,
+            directory = directory
         )
     }
 
+    private fun typeFolder(
+        type: JarvisProjectType
+    ): String {
+
+        return when (type) {
+
+            JarvisProjectType.WEBSITE ->
+                "websites"
+
+            JarvisProjectType.GAME_2D ->
+                "games_2d"
+
+            JarvisProjectType.GAME_3D ->
+                "games_3d"
+
+            JarvisProjectType.UNKNOWN ->
+                "unknown"
+        }
+    }
+
     // ============================================================
-    // PROJECT FILES
+    // SAFE PROJECT FILES
     // ============================================================
 
     fun saveMainFile(
@@ -492,9 +930,29 @@ class ProjectWorkspace(
         html: String
     ): File {
 
-        require(html.isNotBlank())
+        return saveMainFileAtomic(
+            project,
+            html,
+            makePreviewable = true
+        )
+    }
 
-        backupCurrentVersion(project)
+    fun saveMainFileAtomic(
+        project: JarvisProject,
+        html: String,
+        makePreviewable: Boolean
+    ): File {
+
+        require(
+            html.isNotBlank()
+        )
+
+        if (
+            !project.directory.exists()
+        ) {
+
+            project.directory.mkdirs()
+        }
 
         val index =
             File(
@@ -502,11 +960,170 @@ class ProjectWorkspace(
                 INDEX_FILE
             )
 
-        index.writeText(html)
+        val temp =
+            File(
+                project.directory,
+                TEMP_INDEX_FILE
+            )
 
-        setCurrentProject(project)
+        /*
+         * Back up only the existing successful file.
+         */
+        backupCurrentVersion(
+            project
+        )
 
-        return index
+        try {
+
+            /*
+             * Write to temporary file first.
+             *
+             * If Android dies here, the old index.html remains.
+             */
+            temp.writeText(
+                html
+            )
+
+            if (
+                !temp.exists() ||
+                temp.length() <= 0L
+            ) {
+
+                throw IllegalStateException(
+                    "Temporary project file was not written"
+                )
+            }
+
+            /*
+             * Validate what was actually written to disk.
+             */
+            val written =
+                temp.readText()
+
+            if (
+                written.isBlank()
+            ) {
+
+                throw IllegalStateException(
+                    "Temporary project file is empty"
+                )
+            }
+
+            val problems =
+                validateProject(
+                    project,
+                    written
+                )
+
+            val fatal =
+                problems.any {
+
+                    isFatalValidationProblem(
+                        it
+                    )
+                }
+
+            if (fatal) {
+
+                throw IllegalStateException(
+                    "Project failed validation: " +
+                        problems.joinToString(
+                            "; "
+                        )
+                )
+            }
+
+            /*
+             * Replace index only after the temporary version
+             * has passed validation.
+             */
+            if (
+                index.exists()
+            ) {
+
+                val old =
+                    File(
+                        project.directory,
+                        "index.html.old"
+                    )
+
+                try {
+
+                    if (
+                        old.exists()
+                    ) {
+
+                        old.delete()
+                    }
+
+                    index.copyTo(
+                        old,
+                        overwrite = true
+                    )
+
+                } catch (
+                    _: Exception
+                ) {
+                }
+            }
+
+            val renamed =
+                temp.renameTo(
+                    index
+                )
+
+            if (
+                !renamed
+            ) {
+
+                temp.copyTo(
+                    index,
+                    overwrite = true
+                )
+
+                temp.delete()
+            }
+
+            if (
+                !index.exists() ||
+                index.length() <= 0L
+            ) {
+
+                throw IllegalStateException(
+                    "Final project file could not be saved"
+                )
+            }
+
+            setCurrentProject(
+                project
+            )
+
+            if (
+                makePreviewable
+            ) {
+
+                setPreviewProject(
+                    project
+                )
+            }
+
+            return index
+
+        } catch (
+            error: Exception
+        ) {
+
+            try {
+
+                temp.delete()
+
+            } catch (
+                _: Exception
+            ) {
+            }
+
+            throw error
+        }
     }
 
     fun readMainFile(
@@ -519,13 +1136,22 @@ class ProjectWorkspace(
                 INDEX_FILE
             )
 
-        if (!file.exists()) {
+        if (
+            !file.exists() ||
+            file.length() <= 0L
+        ) {
+
             return null
         }
 
         return try {
+
             file.readText()
-        } catch (_: Exception) {
+
+        } catch (
+            _: Exception
+        ) {
+
             null
         }
     }
@@ -541,6 +1167,24 @@ class ProjectWorkspace(
             project.directory,
             INDEX_FILE
         ).takeIf {
+
+            it.exists() &&
+                it.length() > 0L
+        }
+    }
+
+    fun previewMainFile():
+        File? {
+
+        val project =
+            getPreviewProject()
+                ?: return null
+
+        return File(
+            project.directory,
+            INDEX_FILE
+        ).takeIf {
+
             it.exists() &&
                 it.length() > 0L
         }
@@ -562,8 +1206,9 @@ class ProjectWorkspace(
 
         if (
             !current.exists() ||
-            current.length() == 0L
+            current.length() <= 0L
         ) {
+
             return
         }
 
@@ -572,6 +1217,7 @@ class ProjectWorkspace(
                 project.directory,
                 "backups"
             ).apply {
+
                 mkdirs()
             }
 
@@ -584,17 +1230,28 @@ class ProjectWorkspace(
         val backup =
             File(
                 backupDirectory,
-                "index_${formatter.format(Date())}.html"
+                "index_${
+                    formatter.format(
+                        Date()
+                    )
+                }.html"
             )
 
-        current.copyTo(
-            backup,
-            overwrite = false
-        )
+        try {
 
-        trimOldBackups(
-            backupDirectory
-        )
+            current.copyTo(
+                backup,
+                overwrite = false
+            )
+
+            trimOldBackups(
+                backupDirectory
+            )
+
+        } catch (
+            _: Exception
+        ) {
+        }
     }
 
     private fun trimOldBackups(
@@ -605,6 +1262,7 @@ class ProjectWorkspace(
             directory
                 .listFiles()
                 ?.filter {
+
                     it.isFile &&
                         it.extension.equals(
                             "html",
@@ -612,6 +1270,7 @@ class ProjectWorkspace(
                         )
                 }
                 ?.sortedByDescending {
+
                     it.lastModified()
                 }
                 ?: return
@@ -619,20 +1278,32 @@ class ProjectWorkspace(
         backups
             .drop(10)
             .forEach {
+
                 try {
+
                     it.delete()
-                } catch (_: Exception) {
+
+                } catch (
+                    _: Exception
+                ) {
                 }
             }
     }
 
     // ============================================================
-    // AI OUTPUT EXTRACTION
+    // AI OUTPUT
     // ============================================================
 
     fun extractGeneratedHtml(
         output: String
     ): String? {
+
+        if (
+            output.isBlank()
+        ) {
+
+            return null
+        }
 
         val tagged =
             Regex(
@@ -644,7 +1315,10 @@ class ProjectWorkspace(
                 ?.getOrNull(1)
                 ?.trim()
 
-        if (!tagged.isNullOrBlank()) {
+        if (
+            !tagged.isNullOrBlank()
+        ) {
+
             return tagged
         }
 
@@ -658,7 +1332,10 @@ class ProjectWorkspace(
                 ?.getOrNull(1)
                 ?.trim()
 
-        if (!fenced.isNullOrBlank()) {
+        if (
+            !fenced.isNullOrBlank()
+        ) {
+
             return fenced
         }
 
@@ -668,9 +1345,14 @@ class ProjectWorkspace(
                 ignoreCase = true
             )
 
-        if (doctype >= 0) {
+        if (
+            doctype >= 0
+        ) {
+
             return output
-                .substring(doctype)
+                .substring(
+                    doctype
+                )
                 .trim()
         }
 
@@ -680,9 +1362,14 @@ class ProjectWorkspace(
                 ignoreCase = true
             )
 
-        if (html >= 0) {
+        if (
+            html >= 0
+        ) {
+
             return output
-                .substring(html)
+                .substring(
+                    html
+                )
                 .trim()
         }
 
@@ -710,24 +1397,33 @@ class ProjectWorkspace(
             !lower.contains("<html") &&
             !lower.contains("<!doctype")
         ) {
+
             problems.add(
                 "Missing HTML document structure."
             )
         }
 
-        if (!lower.contains("<body")) {
+        if (
+            !lower.contains("<body")
+        ) {
+
             problems.add(
                 "Missing BODY element."
             )
         }
 
-        if (!lower.contains("</html>")) {
+        if (
+            !lower.contains("</html>")
+        ) {
+
             problems.add(
                 "Missing closing HTML element."
             )
         }
 
-        when (project.type) {
+        when (
+            project.type
+        ) {
 
             JarvisProjectType.WEBSITE -> {
 
@@ -739,6 +1435,7 @@ class ProjectWorkspace(
                         "<meta name='viewport'"
                     )
                 ) {
+
                     problems.add(
                         "Website is missing a mobile viewport."
                     )
@@ -747,13 +1444,23 @@ class ProjectWorkspace(
 
             JarvisProjectType.GAME_2D -> {
 
-                if (!lower.contains("<canvas")) {
+                if (
+                    !lower.contains(
+                        "<canvas"
+                    )
+                ) {
+
                     problems.add(
                         "2D game has no Canvas."
                     )
                 }
 
-                if (!lower.contains("<script")) {
+                if (
+                    !lower.contains(
+                        "<script"
+                    )
+                ) {
+
                     problems.add(
                         "2D game has no game script."
                     )
@@ -764,6 +1471,7 @@ class ProjectWorkspace(
                         "requestanimationframe"
                     )
                 ) {
+
                     problems.add(
                         "2D game has no animation/game loop."
                     )
@@ -776,17 +1484,20 @@ class ProjectWorkspace(
                     lower.contains(
                         "three.module"
                     ) ||
-                    lower.contains(
-                        "three.min"
-                    ) ||
-                    lower.contains(
-                        "from 'three'"
-                    ) ||
-                    lower.contains(
-                        "from \"three\""
-                    )
+                        lower.contains(
+                            "three.min"
+                        ) ||
+                        lower.contains(
+                            "from 'three'"
+                        ) ||
+                        lower.contains(
+                            "from \"three\""
+                        )
 
-                if (!hasThree) {
+                if (
+                    !hasThree
+                ) {
+
                     problems.add(
                         "3D game has no Three.js engine."
                     )
@@ -797,6 +1508,7 @@ class ProjectWorkspace(
                         "requestanimationframe"
                     )
                 ) {
+
                     problems.add(
                         "3D game has no animation/game loop."
                     )
@@ -849,7 +1561,7 @@ class ProjectWorkspace(
     }
 
     // ============================================================
-    // GUARANTEED 2D FOUNDATION
+    // 2D GAME FOUNDATION
     // ============================================================
 
     fun create2DGameFoundation(
@@ -857,7 +1569,9 @@ class ProjectWorkspace(
     ): String {
 
         val safeTitle =
-            escapeHtml(title)
+            escapeHtml(
+                title
+            )
 
         return """
 <!DOCTYPE html>
@@ -870,13 +1584,12 @@ class ProjectWorkspace(
 *{box-sizing:border-box}
 html,body{margin:0;background:#050b12;color:#fff;font-family:Arial,sans-serif;overscroll-behavior:none}
 body{min-height:100%;display:flex;justify-content:center;padding:12px;touch-action:manipulation}
-#gameShell{width:min(100%,760px)}
-#top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+#shell{width:min(100%,760px)}
+#top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 #title{font-weight:800;font-size:18px}
-#hud{font-weight:700}
-#wrap{position:relative;width:100%;background:#081521;border:1px solid #1f5168;border-radius:14px;overflow:hidden}
+#wrap{position:relative;background:#081521;border:1px solid #1f5168;border-radius:14px;overflow:hidden}
 canvas{display:block;width:100%;height:auto;aspect-ratio:16/10;background:#071019;touch-action:none}
-#message{position:absolute;left:12px;right:12px;top:12px;text-align:center;pointer-events:none;font-weight:700}
+#message{position:absolute;left:10px;right:10px;top:10px;text-align:center;font-weight:700;pointer-events:none}
 #controls{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
 button{min-height:52px;border:1px solid #39d9ff;border-radius:12px;background:#0b1c29;color:#fff;font-size:18px;font-weight:800}
 #restart{width:100%;margin-top:8px}
@@ -884,11 +1597,11 @@ button{min-height:52px;border:1px solid #39d9ff;border-radius:12px;background:#0
 </head>
 <body>
 
-<div id="gameShell">
+<div id="shell">
 
 <div id="top">
 <div id="title">$safeTitle</div>
-<div id="hud">Score: <span id="score">0</span></div>
+<div>Score: <span id="score">0</span></div>
 </div>
 
 <div id="wrap">
@@ -897,15 +1610,15 @@ button{min-height:52px;border:1px solid #39d9ff;border-radius:12px;background:#0
 </div>
 
 <div id="controls">
-<button id="left" type="button">◀</button>
-<button id="up" type="button">▲</button>
-<button id="right" type="button">▶</button>
-<button id="down" type="button">▼</button>
-<button id="action" type="button">ACTION</button>
-<button id="pause" type="button">PAUSE</button>
+<button id="left">◀</button>
+<button id="up">▲</button>
+<button id="right">▶</button>
+<button id="down">▼</button>
+<button id="action">ACTION</button>
+<button id="pause">PAUSE</button>
 </div>
 
-<button id="restart" type="button">RESTART</button>
+<button id="restart">RESTART</button>
 
 </div>
 
@@ -946,78 +1659,48 @@ function randomCoin(){
 
 function resetGame(){
  score=0;
- scoreEl.textContent=score;
-
+ scoreEl.textContent='0';
  player.x=100;
  player.y=250;
-
  paused=false;
-
  messageEl.textContent='Collect the yellow coins';
-
  randomCoin();
 }
 
 function update(dt){
 
- if(paused){
-  return;
- }
+ if(paused)return;
 
  let dx=0;
  let dy=0;
 
- if(keys.left)dx-=1;
- if(keys.right)dx+=1;
- if(keys.up)dy-=1;
- if(keys.down)dy+=1;
+ if(keys.left)dx--;
+ if(keys.right)dx++;
+ if(keys.up)dy--;
+ if(keys.down)dy++;
 
- if(dx!==0||dy!==0){
+ if(dx||dy){
 
-  const length=
-   Math.hypot(dx,dy)||1;
+  const len=Math.hypot(dx,dy)||1;
 
-  player.x+=
-   dx/length*
-   player.speed*
-   dt;
-
-  player.y+=
-   dy/length*
-   player.speed*
-   dt;
+  player.x+=dx/len*player.speed*dt;
+  player.y+=dy/len*player.speed*dt;
  }
 
- player.x=
-  Math.max(
-   player.r,
-   Math.min(
-    canvas.width-player.r,
-    player.x
-   )
-  );
+ player.x=Math.max(player.r,Math.min(canvas.width-player.r,player.x));
+ player.y=Math.max(player.r,Math.min(canvas.height-player.r,player.y));
 
- player.y=
-  Math.max(
-   player.r,
-   Math.min(
-    canvas.height-player.r,
-    player.y
-   )
-  );
-
- const distance=
+ if(
   Math.hypot(
    player.x-coin.x,
    player.y-coin.y
-  );
-
- if(distance<player.r+coin.r){
+  )<
+  player.r+coin.r
+ ){
 
   score++;
 
-  scoreEl.textContent=
-   score;
+  scoreEl.textContent=String(score);
 
   messageEl.textContent=
    'Nice! Score '+score;
@@ -1027,13 +1710,6 @@ function update(dt){
 }
 
 function draw(){
-
- ctx.clearRect(
-  0,
-  0,
-  canvas.width,
-  canvas.height
- );
 
  ctx.fillStyle='#07131d';
 
@@ -1045,24 +1721,15 @@ function draw(){
  );
 
  ctx.strokeStyle='#12384d';
- ctx.lineWidth=2;
 
- for(
-  let x=0;
-  x<canvas.width;
-  x+=50
- ){
+ for(let x=0;x<canvas.width;x+=50){
   ctx.beginPath();
   ctx.moveTo(x,0);
   ctx.lineTo(x,canvas.height);
   ctx.stroke();
  }
 
- for(
-  let y=0;
-  y<canvas.height;
-  y+=50
- ){
+ for(let y=0;y<canvas.height;y+=50){
   ctx.beginPath();
   ctx.moveTo(0,y);
   ctx.lineTo(canvas.width,y);
@@ -1071,28 +1738,12 @@ function draw(){
 
  ctx.beginPath();
  ctx.fillStyle='#ffd43b';
-
- ctx.arc(
-  coin.x,
-  coin.y,
-  coin.r,
-  0,
-  Math.PI*2
- );
-
+ ctx.arc(coin.x,coin.y,coin.r,0,Math.PI*2);
  ctx.fill();
 
  ctx.beginPath();
  ctx.fillStyle='#32d7ff';
-
- ctx.arc(
-  player.x,
-  player.y,
-  player.r,
-  0,
-  Math.PI*2
- );
-
+ ctx.arc(player.x,player.y,player.r,0,Math.PI*2);
  ctx.fill();
 }
 
@@ -1101,7 +1752,7 @@ function gameLoop(now){
  const dt=
   Math.min(
    (now-last)/1000,
-   0.05
+   .05
   );
 
  last=now;
@@ -1114,46 +1765,25 @@ function gameLoop(now){
  );
 }
 
-function bindHold(
- id,
- key
-){
+function bindHold(id,key){
 
  const button=
   document.getElementById(id);
 
- button.addEventListener(
-  'pointerdown',
-  event=>{
+ const down=e=>{
+  e.preventDefault();
+  keys[key]=true;
+ };
 
-   event.preventDefault();
+ const up=e=>{
+  e.preventDefault();
+  keys[key]=false;
+ };
 
-   keys[key]=true;
-  }
- );
-
- const release=
-  event=>{
-
-   event.preventDefault();
-
-   keys[key]=false;
-  };
-
- button.addEventListener(
-  'pointerup',
-  release
- );
-
- button.addEventListener(
-  'pointercancel',
-  release
- );
-
- button.addEventListener(
-  'pointerleave',
-  release
- );
+ button.addEventListener('pointerdown',down);
+ button.addEventListener('pointerup',up);
+ button.addEventListener('pointercancel',up);
+ button.addEventListener('pointerleave',up);
 }
 
 bindHold('left','left');
@@ -1161,102 +1791,35 @@ bindHold('right','right');
 bindHold('up','up');
 bindHold('down','down');
 
-document
- .getElementById('action')
- .addEventListener(
-  'click',
-  ()=>{
-   messageEl.textContent='Action!';
-  }
- );
+document.getElementById('pause').onclick=()=>{
+ paused=!paused;
+ messageEl.textContent=paused?'Paused':'Go!';
+};
 
-document
- .getElementById('pause')
- .addEventListener(
-  'click',
-  ()=>{
+document.getElementById('action').onclick=()=>{
+ messageEl.textContent='Action!';
+};
 
-   paused=!paused;
-
-   messageEl.textContent=
-    paused?
-     'Paused':
-     'Go!';
-  }
- );
-
-document
- .getElementById('restart')
- .addEventListener(
-  'click',
-  resetGame
- );
+document.getElementById('restart').onclick=
+ resetGame;
 
 window.addEventListener(
  'keydown',
- event=>{
-
-  if(
-   event.key==='ArrowLeft'||
-   event.key==='a'
-  ){
-   keys.left=true;
-  }
-
-  if(
-   event.key==='ArrowRight'||
-   event.key==='d'
-  ){
-   keys.right=true;
-  }
-
-  if(
-   event.key==='ArrowUp'||
-   event.key==='w'
-  ){
-   keys.up=true;
-  }
-
-  if(
-   event.key==='ArrowDown'||
-   event.key==='s'
-  ){
-   keys.down=true;
-  }
+ e=>{
+  if(e.key==='ArrowLeft'||e.key==='a')keys.left=true;
+  if(e.key==='ArrowRight'||e.key==='d')keys.right=true;
+  if(e.key==='ArrowUp'||e.key==='w')keys.up=true;
+  if(e.key==='ArrowDown'||e.key==='s')keys.down=true;
  }
 );
 
 window.addEventListener(
  'keyup',
- event=>{
-
-  if(
-   event.key==='ArrowLeft'||
-   event.key==='a'
-  ){
-   keys.left=false;
-  }
-
-  if(
-   event.key==='ArrowRight'||
-   event.key==='d'
-  ){
-   keys.right=false;
-  }
-
-  if(
-   event.key==='ArrowUp'||
-   event.key==='w'
-  ){
-   keys.up=false;
-  }
-
-  if(
-   event.key==='ArrowDown'||
-   event.key==='s'
-  ){
-   keys.down=false;
-  }
+ e=>{
+  if(e.key==='ArrowLeft'||e.key==='a')keys.left=false;
+  if(e.key==='ArrowRight'||e.key==='d')keys.right=false;
+  if(e.key==='ArrowUp'||e.key==='w')keys.up=false;
+  if(e.key==='ArrowDown'||e.key==='s')keys.down=false;
  }
 );
 
@@ -1273,7 +1836,7 @@ requestAnimationFrame(
     }
 
     // ============================================================
-    // GUARANTEED 3D FOUNDATION
+    // 3D GAME FOUNDATION
     // ============================================================
 
     fun create3DGameFoundation(
@@ -1281,7 +1844,9 @@ requestAnimationFrame(
     ): String {
 
         val safeTitle =
-            escapeHtml(title)
+            escapeHtml(
+                title
+            )
 
         return """
 <!DOCTYPE html>
@@ -1293,15 +1858,13 @@ requestAnimationFrame(
 
 <style>
 *{box-sizing:border-box}
-html,body{margin:0;background:#030811;color:#fff;font-family:Arial,sans-serif;overscroll-behavior:none}
+html,body{margin:0;background:#030811;color:#fff;font-family:Arial,sans-serif}
 body{padding:10px}
 #shell{width:min(100%,900px);margin:auto}
-#top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
-#title{font-weight:800}
-#hud{font-weight:700}
+#top{display:flex;justify-content:space-between;margin-bottom:8px}
 #game{position:relative;width:100%;aspect-ratio:16/10;background:#07111c;border:1px solid #24546b;border-radius:14px;overflow:hidden}
 #game canvas{display:block;width:100%!important;height:100%!important;touch-action:none}
-#status{position:absolute;left:10px;right:10px;top:10px;text-align:center;z-index:5;pointer-events:none;font-weight:700}
+#status{position:absolute;left:10px;right:10px;top:10px;text-align:center;z-index:5;font-weight:700}
 #controls{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
 button{min-height:52px;border:1px solid #39d9ff;border-radius:12px;background:#0b1c29;color:#fff;font-size:18px;font-weight:800}
 #restart{width:100%;margin-top:8px}
@@ -1313,8 +1876,8 @@ button{min-height:52px;border:1px solid #39d9ff;border-radius:12px;background:#0
 <div id="shell">
 
 <div id="top">
-<div id="title">$safeTitle</div>
-<div id="hud">Score: <span id="score">0</span></div>
+<div><b>$safeTitle</b></div>
+<div>Score: <span id="score">0</span></div>
 </div>
 
 <div id="game">
@@ -1322,15 +1885,15 @@ button{min-height:52px;border:1px solid #39d9ff;border-radius:12px;background:#0
 </div>
 
 <div id="controls">
-<button id="left" type="button">◀</button>
-<button id="forward" type="button">▲</button>
-<button id="right" type="button">▶</button>
-<button id="back" type="button">▼</button>
-<button id="action" type="button">ACTION</button>
-<button id="pause" type="button">PAUSE</button>
+<button id="left">◀</button>
+<button id="forward">▲</button>
+<button id="right">▶</button>
+<button id="back">▼</button>
+<button id="action">ACTION</button>
+<button id="pause">PAUSE</button>
 </div>
 
-<button id="restart" type="button">RESTART</button>
+<button id="restart">RESTART</button>
 
 </div>
 
@@ -1357,7 +1920,7 @@ try{
 }catch(error){
 
  statusEl.textContent=
-  '3D engine could not load. Check your internet connection.';
+  '3D engine could not load. Check internet connection.';
 
  throw error;
 }
@@ -1385,7 +1948,7 @@ const camera=
     gameEl.clientHeight,
     1
    ),
-  0.1,
+  .1,
   100
  );
 
@@ -1401,24 +1964,16 @@ renderer.setPixelRatio(
  )
 );
 
-renderer.setSize(
- gameEl.clientWidth,
- gameEl.clientHeight
-);
-
 gameEl.appendChild(
  renderer.domElement
 );
 
-const hemi=
+scene.add(
  new THREE.HemisphereLight(
   0x9edfff,
   0x172014,
   2
- );
-
-scene.add(
- hemi
+ )
 );
 
 const sun=
@@ -1444,8 +1999,7 @@ const floor=
    50
   ),
   new THREE.MeshStandardMaterial({
-   color:0x163321,
-   roughness:1
+   color:0x163321
   })
  );
 
@@ -1456,25 +2010,19 @@ scene.add(
  floor
 );
 
-const grid=
+scene.add(
  new THREE.GridHelper(
   50,
   25,
   0x2a667c,
   0x24452f
- );
-
-grid.position.y=
- 0.01;
-
-scene.add(
- grid
+ )
 );
 
 const player=
  new THREE.Mesh(
   new THREE.CapsuleGeometry(
-   0.55,
+   .55,
    1,
    5,
    10
@@ -1497,13 +2045,12 @@ scene.add(
 const target=
  new THREE.Mesh(
   new THREE.SphereGeometry(
-   0.5,
+   .5,
    18,
    18
   ),
   new THREE.MeshStandardMaterial({
-   color:0xffd43b,
-   emissive:0x5a4300
+   color:0xffd43b
   })
  );
 
@@ -1526,9 +2073,9 @@ let previous=
 function moveTarget(){
 
  target.position.set(
-  (Math.random()-0.5)*18,
-  0.6,
-  (Math.random()-0.5)*18
+  (Math.random()-.5)*18,
+  .6,
+  (Math.random()-.5)*18
  );
 }
 
@@ -1555,34 +2102,26 @@ function resetGame(){
 
 function update(dt){
 
- if(paused){
-  return;
- }
+ if(paused)return;
 
  let x=0;
  let z=0;
 
- if(keys.left)x-=1;
- if(keys.right)x+=1;
- if(keys.forward)z-=1;
- if(keys.back)z+=1;
+ if(keys.left)x--;
+ if(keys.right)x++;
+ if(keys.forward)z--;
+ if(keys.back)z++;
 
- if(x!==0||z!==0){
+ if(x||z){
 
-  const length=
+  const len=
    Math.hypot(x,z)||1;
 
-  const speed=6;
-
   player.position.x+=
-   x/length*
-   speed*
-   dt;
+   x/len*6*dt;
 
   player.position.z+=
-   z/length*
-   speed*
-   dt;
+   z/len*6*dt;
  }
 
  player.position.x=
@@ -1599,18 +2138,10 @@ function update(dt){
    20
   );
 
- const dx=
-  player.position.x-
-  target.position.x;
-
- const dz=
-  player.position.z-
-  target.position.z;
-
  if(
   Math.hypot(
-   dx,
-   dz
+   player.position.x-target.position.x,
+   player.position.z-target.position.z
   )<1.2
  ){
 
@@ -1634,12 +2165,12 @@ function update(dt){
 
  camera.position.lerp(
   desired,
-  0.08
+  .08
  );
 
  camera.lookAt(
   player.position.x,
-  0.8,
+  .8,
   player.position.z
  );
 }
@@ -1649,7 +2180,7 @@ function animate(now){
  const dt=
   Math.min(
    (now-previous)/1000,
-   0.05
+   .05
   );
 
  previous=now;
@@ -1691,168 +2222,43 @@ function resize(){
  );
 }
 
-function bindHold(
- id,
- key
-){
+function bindHold(id,key){
 
  const button=
   document.getElementById(id);
 
- button.addEventListener(
-  'pointerdown',
-  event=>{
+ const down=e=>{
+  e.preventDefault();
+  keys[key]=true;
+ };
 
-   event.preventDefault();
+ const up=e=>{
+  e.preventDefault();
+  keys[key]=false;
+ };
 
-   keys[key]=true;
-  }
- );
-
- const release=
-  event=>{
-
-   event.preventDefault();
-
-   keys[key]=false;
-  };
-
- button.addEventListener(
-  'pointerup',
-  release
- );
-
- button.addEventListener(
-  'pointercancel',
-  release
- );
-
- button.addEventListener(
-  'pointerleave',
-  release
- );
+ button.addEventListener('pointerdown',down);
+ button.addEventListener('pointerup',up);
+ button.addEventListener('pointercancel',up);
+ button.addEventListener('pointerleave',up);
 }
 
-bindHold(
- 'left',
- 'left'
-);
+bindHold('left','left');
+bindHold('right','right');
+bindHold('forward','forward');
+bindHold('back','back');
 
-bindHold(
- 'right',
- 'right'
-);
+document.getElementById('pause').onclick=()=>{
+ paused=!paused;
+ statusEl.textContent=paused?'Paused':'Go!';
+};
 
-bindHold(
- 'forward',
- 'forward'
-);
+document.getElementById('action').onclick=()=>{
+ statusEl.textContent='Action!';
+};
 
-bindHold(
- 'back',
- 'back'
-);
-
-document
- .getElementById('action')
- .addEventListener(
-  'click',
-  ()=>{
-   statusEl.textContent=
-    'Action!';
-  }
- );
-
-document
- .getElementById('pause')
- .addEventListener(
-  'click',
-  ()=>{
-
-   paused=
-    !paused;
-
-   statusEl.textContent=
-    paused?
-     'Paused':
-     'Go!';
-  }
- );
-
-document
- .getElementById('restart')
- .addEventListener(
-  'click',
-  resetGame
- );
-
-window.addEventListener(
- 'keydown',
- event=>{
-
-  if(
-   event.key==='ArrowLeft'||
-   event.key==='a'
-  ){
-   keys.left=true;
-  }
-
-  if(
-   event.key==='ArrowRight'||
-   event.key==='d'
-  ){
-   keys.right=true;
-  }
-
-  if(
-   event.key==='ArrowUp'||
-   event.key==='w'
-  ){
-   keys.forward=true;
-  }
-
-  if(
-   event.key==='ArrowDown'||
-   event.key==='s'
-  ){
-   keys.back=true;
-  }
- }
-);
-
-window.addEventListener(
- 'keyup',
- event=>{
-
-  if(
-   event.key==='ArrowLeft'||
-   event.key==='a'
-  ){
-   keys.left=false;
-  }
-
-  if(
-   event.key==='ArrowRight'||
-   event.key==='d'
-  ){
-   keys.right=false;
-  }
-
-  if(
-   event.key==='ArrowUp'||
-   event.key==='w'
-  ){
-   keys.forward=false;
-  }
-
-  if(
-   event.key==='ArrowDown'||
-   event.key==='s'
-  ){
-   keys.back=false;
-  }
- }
-);
+document.getElementById('restart').onclick=
+ resetGame;
 
 window.addEventListener(
  'resize',
@@ -1874,7 +2280,7 @@ requestAnimationFrame(
     }
 
     // ============================================================
-    // BUILDER SYSTEM PROMPTS
+    // BUILDER PROMPTS
     // ============================================================
 
     fun builderSystemPrompt(
@@ -1885,7 +2291,7 @@ requestAnimationFrame(
             """
 You are JARVIS BUILDER.
 
-Create and edit complete runnable projects.
+Create complete runnable projects.
 
 CRITICAL RULES:
 
@@ -1893,17 +2299,19 @@ CRITICAL RULES:
 2. Never return partial code.
 3. Never use TODO.
 4. Never use ellipses instead of code.
-5. Never omit closing HTML tags.
-6. Keep generated code compact enough to finish.
-7. Do not waste output tokens explaining the code.
+5. Include closing BODY and HTML tags.
+6. KEEP CODE COMPACT.
+7. Do not explain the code.
 8. Preserve working code when editing.
-9. Never silently change project type.
+9. Never change project type.
 10. Make controls mobile friendly.
+11. Avoid unnecessary libraries.
+12. Prefer short CSS and JavaScript.
 
-Return the finished file exactly between:
+Return exactly:
 
 <JARVIS_FILE>
-FULL COMPLETE INDEX.HTML
+COMPLETE HTML
 </JARVIS_FILE>
 """.trimIndent()
 
@@ -1915,15 +2323,15 @@ FULL COMPLETE INDEX.HTML
                     """
 PROJECT TYPE: WEBSITE
 
-Build a complete polished responsive website.
+Create a polished responsive mobile-friendly website.
 
-Use complete HTML and CSS.
-Use JavaScript when useful.
-Include a mobile viewport.
-Style buttons and navigation.
-Make it look good on Android.
-Avoid broken external images.
-Prefer CSS, gradients, emoji or inline SVG.
+IMPORTANT:
+Keep the HTML compact.
+Use CSS instead of external assets.
+Avoid large SVG data.
+Avoid external images unless essential.
+Use lightweight JavaScript only when needed.
+Include the mobile viewport.
 """.trimIndent()
 
                 JarvisProjectType.GAME_2D ->
@@ -1931,24 +2339,15 @@ Prefer CSS, gradients, emoji or inline SVG.
                     """
 PROJECT TYPE: 2D GAME
 
-A complete working Canvas foundation is already available.
+Preserve:
+Canvas
+requestAnimationFrame
+touch controls
+keyboard controls
+restart handling
 
-MODIFY THE FOUNDATION instead of rebuilding everything.
-
-Keep:
-- HTML5 Canvas
-- requestAnimationFrame
-- keyboard controls
-- Android touch controls
-- restart handling
-- complete HTML structure
-
-Change the gameplay, graphics, objects and rules to match the user's request.
-
-Use generated Canvas graphics.
-Do not require external images.
-Never remove the animation loop.
-Keep the code compact enough to finish.
+Modify the existing foundation.
+Do not rebuild unnecessarily.
 """.trimIndent()
 
                 JarvisProjectType.GAME_3D ->
@@ -1956,36 +2355,25 @@ Keep the code compact enough to finish.
                     """
 PROJECT TYPE: 3D GAME
 
-A complete working Three.js foundation is already available.
+Preserve:
+Three.js
+scene
+camera
+renderer
+lighting
+requestAnimationFrame
+resize handling
+touch controls
 
-MODIFY THE FOUNDATION instead of rebuilding everything.
-
-Keep:
-- Three.js
-- scene
-- perspective camera
-- WebGL renderer
-- lighting
-- requestAnimationFrame
-- resize handling
-- keyboard controls
-- Android touch controls
-- complete HTML structure
-
-Change the world, gameplay, player and objectives to match the request.
-
-Use generated Three.js geometry and materials.
-Do not require external models or textures.
-Never remove the animation loop.
-Keep the code compact enough to finish.
+Modify the existing foundation.
+Keep it compact.
 """.trimIndent()
 
                 JarvisProjectType.UNKNOWN ->
 
                     """
 PROJECT TYPE UNKNOWN.
-
-Ask whether the user wants a WEBSITE, 2D GAME, or 3D GAME.
+Ask for WEBSITE, 2D GAME or 3D GAME.
 """.trimIndent()
             }
 
@@ -2006,59 +2394,63 @@ $specialist
     ): String {
 
         val existing =
-            readMainFile(project)
-                ?: when (project.type) {
+            readMainFile(
+                project
+            )
+                ?: when (
+                    project.type
+                ) {
 
                     JarvisProjectType.GAME_2D ->
+
                         create2DGameFoundation(
-                            displayName(project.name)
+                            displayName(
+                                project.name
+                            )
                         )
 
                     JarvisProjectType.GAME_3D ->
+
                         create3DGameFoundation(
-                            displayName(project.name)
+                            displayName(
+                                project.name
+                            )
                         )
 
-                    else ->
-                        ""
+                    else -> ""
                 }
 
         return """
-You are editing the CURRENT EXISTING PROJECT.
+EDIT CURRENT PROJECT.
 
 PROJECT:
 ${project.name}
 
-PROJECT ID:
+ID:
 ${project.id}
 
-LOCKED TYPE:
+TYPE:
 ${project.type.name}
 
-USER REQUEST:
+REQUEST:
 $userRequest
 
-Modify the existing code below.
+Modify the existing project.
 
-IMPORTANT:
+RULES:
+Keep the same type.
+Preserve working features.
+Return COMPLETE index.html.
+Keep output compact.
+Never omit </body> or </html>.
 
-- This is NOT a new project.
-- Preserve working features.
-- Keep the same project type.
-- Return the COMPLETE updated index.html.
-- Never return only a changed section.
-- Keep the result compact enough to finish.
-- Never omit </body> or </html>.
-- For 2D keep Canvas and requestAnimationFrame.
-- For 3D keep Three.js and requestAnimationFrame.
-
-EXISTING WORKING PROJECT:
+EXISTING:
 
 <JARVIS_EXISTING_FILE>
 $existing
 </JARVIS_EXISTING_FILE>
 
-Return the complete result inside JARVIS_FILE.
+Return inside JARVIS_FILE.
 """.trimIndent()
     }
 
@@ -2072,47 +2464,50 @@ Return the complete result inside JARVIS_FILE.
     ): String {
 
         val foundation =
-            when (project.type) {
+            when (
+                project.type
+            ) {
 
                 JarvisProjectType.GAME_2D ->
+
                     create2DGameFoundation(
-                        displayName(project.name)
+                        displayName(
+                            project.name
+                        )
                     )
 
                 JarvisProjectType.GAME_3D ->
+
                     create3DGameFoundation(
-                        displayName(project.name)
+                        displayName(
+                            project.name
+                        )
                     )
 
-                else ->
-                    ""
+                else -> ""
             }
 
         return """
-BUILD THIS GAME:
+BUILD GAME:
 
 $userRequest
 
-You have a GUARANTEED WORKING FOUNDATION below.
+Modify this working foundation.
 
-MODIFY IT instead of rebuilding from nothing.
-
-Keep its engine, controls, animation loop and complete HTML structure.
-
-Keep your output compact enough to finish.
-
-WORKING FOUNDATION:
+Do not rebuild from scratch.
+Keep engine, controls and animation loop.
+Return complete compact HTML.
 
 <JARVIS_EXISTING_FILE>
 $foundation
 </JARVIS_EXISTING_FILE>
 
-Return ONE COMPLETE updated index.html inside JARVIS_FILE.
+Return inside JARVIS_FILE.
 """.trimIndent()
     }
 
     // ============================================================
-    // FALLBACK + REPAIR
+    // FALLBACK
     // ============================================================
 
     fun workingFallback(
@@ -2120,37 +2515,54 @@ Return ONE COMPLETE updated index.html inside JARVIS_FILE.
     ): String? {
 
         val existing =
-            readMainFile(project)
+            readMainFile(
+                project
+            )
 
-        if (existing != null) {
+        if (
+            existing != null
+        ) {
 
             val fatal =
                 validateProject(
                     project,
                     existing
                 ).any {
-                    isFatalValidationProblem(it)
+
+                    isFatalValidationProblem(
+                        it
+                    )
                 }
 
-            if (!fatal) {
+            if (
+                !fatal
+            ) {
+
                 return existing
             }
         }
 
-        return when (project.type) {
+        return when (
+            project.type
+        ) {
 
             JarvisProjectType.GAME_2D ->
+
                 create2DGameFoundation(
-                    displayName(project.name)
+                    displayName(
+                        project.name
+                    )
                 )
 
             JarvisProjectType.GAME_3D ->
+
                 create3DGameFoundation(
-                    displayName(project.name)
+                    displayName(
+                        project.name
+                    )
                 )
 
-            else ->
-                null
+            else -> null
         }
     }
 
@@ -2161,46 +2573,36 @@ Return ONE COMPLETE updated index.html inside JARVIS_FILE.
     ): String {
 
         val fallback =
-            workingFallback(project)
-                .orEmpty()
+            workingFallback(
+                project
+            ).orEmpty()
 
         return """
-REPAIR THIS PROJECT.
+REPAIR PROJECT.
 
 TYPE:
 ${project.type.name}
 
-VALIDATION ERRORS:
+ERRORS:
 ${problems.joinToString("; ")}
 
-The generated version was incomplete or invalid.
-
-BROKEN VERSION:
-
+BROKEN:
 <JARVIS_BROKEN_FILE>
 $brokenHtml
 </JARVIS_BROKEN_FILE>
 
-KNOWN WORKING VERSION:
-
+WORKING VERSION:
 <JARVIS_EXISTING_FILE>
 $fallback
 </JARVIS_EXISTING_FILE>
 
-Return ONE COMPLETE valid index.html.
+Return ONE COMPLETE compact index.html.
+Do not explain.
+Include </body> and </html>.
 
-IMPORTANT:
-
-- Do not explain.
-- Keep it compact.
-- Finish the complete document.
-- Include </body> and </html>.
-- Preserve requestAnimationFrame for games.
-- Preserve Canvas for 2D.
-- Preserve Three.js for 3D.
-- Prefer the known working version if the broken version cannot be repaired compactly.
-
-Return the result inside JARVIS_FILE.
+<JARVIS_FILE>
+COMPLETE RESULT
+</JARVIS_FILE>
 """.trimIndent()
     }
 
@@ -2226,7 +2628,7 @@ created=${System.currentTimeMillis()}
     }
 
     // ============================================================
-    // PROJECT NAMES
+    // PROJECT NAME
     // ============================================================
 
     fun suggestedProjectName(
@@ -2239,12 +2641,16 @@ created=${System.currentTimeMillis()}
                 """\b(?:called|named)\s+([a-z0-9][a-z0-9 '&-]{0,39})(?=[.!?,]|$)""",
                 RegexOption.IGNORE_CASE
             )
-                .find(request)
+                .find(
+                    request
+                )
                 ?.groupValues
                 ?.getOrNull(1)
                 ?.trim()
 
-        if (!called.isNullOrBlank()) {
+        if (
+            !called.isNullOrBlank()
+        ) {
 
             return sanitizeProjectName(
                 called
@@ -2295,31 +2701,44 @@ created=${System.currentTimeMillis()}
         cleaned =
             cleaned
                 .replace(
-                    Regex("[^a-z0-9 ]"),
+                    Regex(
+                        "[^a-z0-9 ]"
+                    ),
                     " "
                 )
                 .replace(
-                    Regex("\\s+"),
+                    Regex(
+                        "\\s+"
+                    ),
                     " "
                 )
                 .trim()
 
         val words =
             cleaned
-                .split(" ")
+                .split(
+                    " "
+                )
                 .filter {
+
                     it.isNotBlank()
                 }
                 .take(5)
 
-        if (words.isNotEmpty()) {
+        if (
+            words.isNotEmpty()
+        ) {
 
             return sanitizeProjectName(
-                words.joinToString("_")
+                words.joinToString(
+                    "_"
+                )
             )
         }
 
-        return when (type) {
+        return when (
+            type
+        ) {
 
             JarvisProjectType.WEBSITE ->
                 "website"
@@ -2345,17 +2764,26 @@ created=${System.currentTimeMillis()}
                     Locale.getDefault()
                 )
                 .replace(
-                    Regex("[^a-z0-9_-]"),
+                    Regex(
+                        "[^a-z0-9_-]"
+                    ),
                     "_"
                 )
                 .replace(
-                    Regex("_+"),
+                    Regex(
+                        "_+"
+                    ),
                     "_"
                 )
-                .trim('_')
-                .take(50)
+                .trim(
+                    '_'
+                )
+                .take(
+                    50
+                )
 
         return cleaned.ifBlank {
+
             "jarvis_project"
         }
     }
@@ -2365,17 +2793,29 @@ created=${System.currentTimeMillis()}
     ): String {
 
         return name
-            .replace("_", " ")
-            .split(" ")
+            .replace(
+                "_",
+                " "
+            )
+            .split(
+                " "
+            )
             .filter {
+
                 it.isNotBlank()
             }
-            .joinToString(" ") {
-                it.replaceFirstChar { character ->
+            .joinToString(
+                " "
+            ) {
+
+                it.replaceFirstChar {
+                    character ->
+
                     character.uppercase()
                 }
             }
             .ifBlank {
+
                 "Jarvis Game"
             }
     }
@@ -2385,10 +2825,25 @@ created=${System.currentTimeMillis()}
     ): String {
 
         return value
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace("\"", "&quot;")
-            .replace("'", "&#39;")
+            .replace(
+                "&",
+                "&amp;"
+            )
+            .replace(
+                "<",
+                "&lt;"
+            )
+            .replace(
+                ">",
+                "&gt;"
+            )
+            .replace(
+                "\"",
+                "&quot;"
+            )
+            .replace(
+                "'",
+                "&#39;"
+            )
     }
 }
