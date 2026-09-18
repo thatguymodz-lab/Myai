@@ -1,7 +1,6 @@
 package com.novajarvis.android
 
 import android.Manifest
-import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -12,8 +11,15 @@ import android.speech.tts.TextToSpeech
 import android.view.Gravity
 import android.view.View
 import android.widget.*
+import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import dev.ffmpegkit.llama.Llama
+import dev.ffmpegkit.llama.LlamaConfig
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.RandomAccessFile
 import java.net.HttpURLConnection
@@ -21,7 +27,7 @@ import java.net.URL
 import java.util.Locale
 import java.util.concurrent.Executors
 
-class MainActivity : Activity(), TextToSpeech.OnInitListener {
+class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
     private lateinit var chatText: TextView
     private lateinit var inputText: EditText
@@ -32,27 +38,42 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
     private lateinit var modelButton: Button
 
     private var tts: TextToSpeech? = null
-    private val executor = Executors.newSingleThreadExecutor()
+
+    private val downloadExecutor =
+        Executors.newSingleThreadExecutor()
 
     private val prefs by lazy {
-        getSharedPreferences("jarvis_memory", MODE_PRIVATE)
+        getSharedPreferences(
+            "jarvis_memory",
+            MODE_PRIVATE
+        )
     }
 
     private val modelFile by lazy {
-        File(filesDir, "models/jarvis.gguf")
+        File(
+            filesDir,
+            "models/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+        )
     }
 
     private val partialModelFile by lazy {
-        File(filesDir, "models/jarvis.gguf.part")
+        File(
+            filesDir,
+            "models/qwen2.5-0.5b-instruct-q4_k_m.gguf.part"
+        )
     }
 
-    /*
-     * Step 9 will replace this with the real GGUF model URL.
-     */
     private val MODEL_URL =
-        "https://example.com/jarvis.gguf"
+        "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf?download=true"
 
     private var modelReady = false
+    private var modelLoaded = false
+
+    /*
+     * llama-android returns a native model handle.
+     * Long is used by the library API.
+     */
+    private var llamaModel: Long? = null
 
     private val speechLauncher =
         registerForActivityResult(
@@ -107,9 +128,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         savedInstanceState: Bundle?
     ) {
 
-        super.onCreate(
-            savedInstanceState
-        )
+        super.onCreate(savedInstanceState)
 
         tts =
             TextToSpeech(
@@ -124,14 +143,25 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         checkModel()
 
         addJarvisMessage(
-            "JARVIS Android initialized.\n" +
-                "Text chat, TALK, speech output and local memory are ready."
+            "JARVIS Android initialized."
         )
+
+        if (modelReady) {
+
+            loadLocalModel()
+
+        } else {
+
+            addJarvisMessage(
+                "The local AI model is not installed yet. " +
+                    "Press MODEL to download it."
+            )
+        }
     }
 
-    // ------------------------------------------------------------
-    // INTERFACE
-    // ------------------------------------------------------------
+    // ============================================================
+    // USER INTERFACE
+    // ============================================================
 
     private fun buildInterface() {
 
@@ -221,7 +251,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
             TextView(this).apply {
 
                 text =
-                    "LOCAL AI ASSISTANT"
+                    "PRIVATE ON-DEVICE AI"
 
                 textSize =
                     12f
@@ -426,17 +456,11 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
             }
         )
 
-        root.addView(
-            title
-        )
+        root.addView(title)
 
-        root.addView(
-            subtitle
-        )
+        root.addView(subtitle)
 
-        root.addView(
-            statusText
-        )
+        root.addView(statusText)
 
         root.addView(
             progressBar,
@@ -478,13 +502,9 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
             }
         )
 
-        root.addView(
-            buttonRow
-        )
+        root.addView(buttonRow)
 
-        setContentView(
-            root
-        )
+        setContentView(root)
 
         sendButton.setOnClickListener {
 
@@ -498,15 +518,24 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
 
         modelButton.setOnClickListener {
 
-            if (modelReady) {
+            when {
 
-                addJarvisMessage(
-                    "The local AI model is already installed."
-                )
+                modelLoaded -> {
 
-            } else {
+                    addJarvisMessage(
+                        "The local Jarvis AI model is loaded and ready."
+                    )
+                }
 
-                downloadModel()
+                modelReady -> {
+
+                    loadLocalModel()
+                }
+
+                else -> {
+
+                    downloadModel()
+                }
             }
         }
     }
@@ -540,9 +569,9 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         }
     }
 
-    // ------------------------------------------------------------
+    // ============================================================
     // CHAT
-    // ------------------------------------------------------------
+    // ============================================================
 
     private fun sendMessage() {
 
@@ -552,121 +581,170 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
                 .trim()
 
         if (message.isEmpty()) {
+            return
+        }
+
+        inputText.setText("")
+
+        addUserMessage(message)
+
+        rememberLastUserMessage(message)
+
+        if (!modelReady) {
+
+            addJarvisMessage(
+                "My local AI model hasn't been downloaded yet. " +
+                    "Press MODEL first."
+            )
 
             return
         }
 
-        inputText.setText(
-            ""
-        )
+        if (!modelLoaded) {
 
-        addUserMessage(
-            message
-        )
-
-        rememberLastUserMessage(
-            message
-        )
-
-        setStatus(
-            "JARVIS: THINKING"
-        )
-
-        executor.execute {
-
-            val response =
-                generateResponse(
-                    message
-                )
-
-            runOnUiThread {
-
-                addJarvisMessage(
-                    response
-                )
-
-                speak(
-                    response
-                )
-
-                setStatus(
-                    if (modelReady)
-                        "SYSTEM: LOCAL MODEL READY"
-                    else
-                        "SYSTEM: READY"
-                )
-            }
-        }
-    }
-
-    /*
-     * Step 9 connects this function to real local
-     * llama/GGUF inference.
-     */
-    private fun generateResponse(
-        message: String
-    ): String {
-
-        val lower =
-            message.lowercase(
-                Locale.getDefault()
+            addJarvisMessage(
+                "I'm loading my local AI model. " +
+                    "Please try again when the status says AI READY."
             )
 
-        return when {
+            loadLocalModel()
 
-            lower == "hello" ||
-                lower == "hi" ||
-                lower.contains(
-                    "hello jarvis"
-                ) -> {
+            return
+        }
 
-                "Hello. Jarvis is online."
-            }
+        generateAIResponse(message)
+    }
 
-            lower.contains(
-                "what do you remember"
-            ) -> {
+    private fun generateAIResponse(
+        message: String
+    ) {
+
+        val model =
+            llamaModel
+
+        if (model == null) {
+
+            modelLoaded =
+                false
+
+            setStatus(
+                "SYSTEM: MODEL NOT LOADED"
+            )
+
+            return
+        }
+
+        sendButton.isEnabled =
+            false
+
+        talkButton.isEnabled =
+            false
+
+        setStatus(
+            "JARVIS: THINKING LOCALLY"
+        )
+
+        lifecycleScope.launch {
+
+            try {
 
                 val remembered =
                     prefs.getString(
-                        "last_user_message",
-                        null
+                        "previous_user_message",
+                        ""
+                    ).orEmpty()
+
+                val memoryContext =
+                    if (remembered.isBlank()) {
+
+                        ""
+
+                    } else {
+
+                        """
+                        Previous user message:
+                        $remembered
+
+                        """.trimIndent()
+                    }
+
+                val prompt =
+                    """
+                    $memoryContext
+                    Current user message:
+                    $message
+                    """.trimIndent()
+
+                val result =
+                    withContext(
+                        Dispatchers.Default
+                    ) {
+
+                        Llama.complete(
+                            model,
+                            prompt = prompt,
+                            systemPrompt =
+                                "You are JARVIS, a helpful, intelligent, concise private AI assistant running locally on the user's Android phone. " +
+                                "Answer naturally and directly. " +
+                                "Do not pretend you performed actions you cannot perform.",
+                            maxTokens = 256
+                        )
+                    }
+
+                val answer =
+                    result.text.trim()
+
+                if (answer.isBlank()) {
+
+                    addJarvisMessage(
+                        "I couldn't generate a response."
                     )
-
-                if (
-                    remembered.isNullOrBlank()
-                ) {
-
-                    "My local memory is currently empty."
 
                 } else {
 
-                    "The last thing I remember you saying is: $remembered"
-                }
-            }
+                    addJarvisMessage(
+                        answer
+                    )
 
-            lower.contains(
-                "clear memory"
-            ) -> {
+                    speak(
+                        answer
+                    )
+                }
 
                 prefs.edit()
-                    .clear()
+                    .putString(
+                        "previous_user_message",
+                        message
+                    )
                     .apply()
 
-                "Local memory cleared."
-            }
+                setStatus(
+                    "SYSTEM: AI READY"
+                )
 
-            modelReady -> {
+            } catch (
+                e: Exception
+            ) {
 
-                "The local model is installed. " +
-                    "The inference engine will be connected in Step 9."
-            }
+                addJarvisMessage(
+                    "Local AI error: " +
+                        (
+                            e.message
+                                ?: "Unknown model error"
+                            )
+                )
 
-            else -> {
+                setStatus(
+                    "SYSTEM: AI ERROR"
+                )
 
-                "I heard you. My interface, voice and memory are working. " +
-                    "Install the local model with the MODEL button " +
-                    "to prepare offline AI."
+            } finally {
+
+                sendButton.isEnabled =
+                    true
+
+                talkButton.isEnabled =
+                    true
             }
         }
     }
@@ -693,14 +771,12 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         message: String
     ) {
 
-        chatText.append(
-            message
-        )
+        chatText.append(message)
     }
 
-    // ------------------------------------------------------------
-    // MEMORY
-    // ------------------------------------------------------------
+    // ============================================================
+    // LOCAL MEMORY
+    // ============================================================
 
     private fun rememberLastUserMessage(
         message: String
@@ -722,9 +798,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
                 null
             )
 
-        if (
-            !previous.isNullOrBlank()
-        ) {
+        if (!previous.isNullOrBlank()) {
 
             addJarvisMessage(
                 "Local memory restored."
@@ -732,9 +806,9 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         }
     }
 
-    // ------------------------------------------------------------
+    // ============================================================
     // VOICE INPUT
-    // ------------------------------------------------------------
+    // ============================================================
 
     private fun requestVoiceInput() {
 
@@ -803,9 +877,9 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         }
     }
 
-    // ------------------------------------------------------------
+    // ============================================================
     // TEXT TO SPEECH
-    // ------------------------------------------------------------
+    // ============================================================
 
     override fun onInit(
         status: Int
@@ -837,24 +911,25 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         )
     }
 
-    // ------------------------------------------------------------
-    // MODEL
-    // ------------------------------------------------------------
+    // ============================================================
+    // LOCAL LLAMA MODEL
+    // ============================================================
 
     private fun checkModel() {
 
         modelReady =
             modelFile.exists() &&
-            modelFile.length() > 0L
+                modelFile.length() >
+                100_000_000L
 
         if (modelReady) {
 
             setStatus(
-                "SYSTEM: LOCAL MODEL READY"
+                "SYSTEM: MODEL INSTALLED"
             )
 
             modelButton.text =
-                "MODEL ✓"
+                "LOAD AI"
 
         } else {
 
@@ -867,27 +942,121 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         }
     }
 
-    /*
-     * Resumable model downloader.
-     *
-     * If the network disconnects, the .part file is kept.
-     * Press MODEL again to retry/resume.
-     */
-    private fun downloadModel() {
+    private fun loadLocalModel() {
 
-        if (
-            MODEL_URL.contains(
-                "example.com"
-            )
-        ) {
+        if (!modelReady) {
 
             addJarvisMessage(
-                "The downloader is ready, but the real GGUF model URL " +
-                    "will be configured in Step 9."
+                "The model needs to be downloaded first."
             )
 
             return
         }
+
+        if (modelLoaded) {
+            return
+        }
+
+        modelButton.isEnabled =
+            false
+
+        sendButton.isEnabled =
+            false
+
+        setStatus(
+            "SYSTEM: LOADING LOCAL AI"
+        )
+
+        addJarvisMessage(
+            "Loading my local AI brain. This can take a moment."
+        )
+
+        lifecycleScope.launch {
+
+            try {
+
+                val loadedModel =
+                    withContext(
+                        Dispatchers.Default
+                    ) {
+
+                        Llama.loadModel(
+                            modelPath =
+                                modelFile.absolutePath,
+                            config =
+                                LlamaConfig(
+                                    contextSize = 2048,
+                                    threads =
+                                        Runtime
+                                            .getRuntime()
+                                            .availableProcessors()
+                                            .coerceIn(
+                                                2,
+                                                6
+                                            )
+                                )
+                        )
+                    }
+
+                llamaModel =
+                    loadedModel
+
+                modelLoaded =
+                    true
+
+                modelButton.text =
+                    "AI ✓"
+
+                setStatus(
+                    "SYSTEM: AI READY"
+                )
+
+                addJarvisMessage(
+                    "Local AI loaded successfully. " +
+                        "I'm ready."
+                )
+
+            } catch (
+                e: Exception
+            ) {
+
+                llamaModel =
+                    null
+
+                modelLoaded =
+                    false
+
+                modelButton.text =
+                    "LOAD AI"
+
+                setStatus(
+                    "SYSTEM: MODEL LOAD ERROR"
+                )
+
+                addJarvisMessage(
+                    "I couldn't load the local model: " +
+                        (
+                            e.message
+                                ?: "Unknown error"
+                            )
+                )
+
+            } finally {
+
+                modelButton.isEnabled =
+                    true
+
+                sendButton.isEnabled =
+                    true
+            }
+        }
+    }
+
+    // ============================================================
+    // MODEL DOWNLOADER
+    // ============================================================
+
+    private fun downloadModel() {
 
         modelButton.isEnabled =
             false
@@ -895,11 +1064,19 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         progressBar.visibility =
             View.VISIBLE
 
+        progressBar.progress =
+            0
+
         setStatus(
-            "MODEL: PREPARING DOWNLOAD"
+            "MODEL: CONNECTING"
         )
 
-        executor.execute {
+        addJarvisMessage(
+            "Downloading my local AI model. " +
+                "It's roughly 500 MB and only needs to be downloaded once."
+        )
+
+        downloadExecutor.execute {
 
             try {
 
@@ -909,10 +1086,14 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
                 var downloaded =
                     if (
                         partialModelFile.exists()
-                    )
+                    ) {
+
                         partialModelFile.length()
-                    else
+
+                    } else {
+
                         0L
+                    }
 
                 var connection =
                     createModelConnection(
@@ -922,11 +1103,6 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
                 var responseCode =
                     connection.responseCode
 
-                /*
-                 * If the server ignores our Range request,
-                 * restart from zero instead of corrupting
-                 * the partial file.
-                 */
                 if (
                     downloaded > 0L &&
                     responseCode !=
@@ -1025,10 +1201,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
                                     buffer
                                 )
 
-                            if (
-                                bytesRead < 0
-                            ) {
-
+                            if (bytesRead < 0) {
                                 break
                             }
 
@@ -1062,7 +1235,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
                                             current *
                                                 100L /
                                                 totalBytes
-                                        )
+                                            )
                                             .toInt()
                                             .coerceIn(
                                                 0,
@@ -1093,17 +1266,15 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
                 if (
                     !partialModelFile.exists() ||
                     partialModelFile.length() <=
-                    0L
+                    100_000_000L
                 ) {
 
                     throw IllegalStateException(
-                        "Downloaded model is empty"
+                        "Downloaded model is incomplete"
                     )
                 }
 
-                if (
-                    modelFile.exists()
-                ) {
+                if (modelFile.exists()) {
 
                     modelFile.delete()
                 }
@@ -1113,9 +1284,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
                         modelFile
                     )
 
-                if (
-                    !renamed
-                ) {
+                if (!renamed) {
 
                     partialModelFile.copyTo(
                         modelFile,
@@ -1139,8 +1308,10 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
                     checkModel()
 
                     addJarvisMessage(
-                        "Local AI model download complete."
+                        "Local AI model downloaded successfully."
                     )
+
+                    loadLocalModel()
                 }
 
             } catch (
@@ -1160,9 +1331,13 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
                     )
 
                     addJarvisMessage(
-                        "The model download stopped. " +
-                            "Your partial download was kept. " +
-                            "Press MODEL to retry and resume."
+                        "The model download stopped: " +
+                            (
+                                e.message
+                                    ?: "Network error"
+                                ) +
+                            ". The partial download has been kept. " +
+                            "Press MODEL to resume."
                     )
                 }
             }
@@ -1181,10 +1356,10 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
             ).apply {
 
                 connectTimeout =
-                    15_000
+                    20_000
 
                 readTimeout =
-                    30_000
+                    60_000
 
                 instanceFollowRedirects =
                     true
@@ -1194,9 +1369,12 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
                     "identity"
                 )
 
-                if (
-                    downloaded > 0L
-                ) {
+                setRequestProperty(
+                    "User-Agent",
+                    "Jarvis-Android"
+                )
+
+                if (downloaded > 0L) {
 
                     setRequestProperty(
                         "Range",
@@ -1208,9 +1386,9 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
             }
     }
 
-    // ------------------------------------------------------------
+    // ============================================================
     // HELPERS
-    // ------------------------------------------------------------
+    // ============================================================
 
     private fun setStatus(
         text: String
@@ -1226,7 +1404,9 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
 
         return (
             value *
-                resources.displayMetrics.density
+                resources
+                    .displayMetrics
+                    .density
             ).toInt()
     }
 
@@ -1236,7 +1416,41 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
 
         tts?.shutdown()
 
-        executor.shutdownNow()
+        downloadExecutor.shutdownNow()
+
+        val model =
+            llamaModel
+
+        if (model != null) {
+
+            /*
+             * Release the native model without blocking
+             * the Android UI thread.
+             */
+            Thread {
+
+                try {
+
+                    kotlinx.coroutines.runBlocking {
+
+                        Llama.releaseModel(
+                            model
+                        )
+                    }
+
+                } catch (
+                    ignored: Exception
+                ) {
+                }
+
+            }.start()
+        }
+
+        llamaModel =
+            null
+
+        modelLoaded =
+            false
 
         super.onDestroy()
     }
