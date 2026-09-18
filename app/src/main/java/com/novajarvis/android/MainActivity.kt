@@ -17,6 +17,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import dev.ffmpegkit.llama.Llama
 import dev.ffmpegkit.llama.LlamaConfig
+import dev.ffmpegkit.llama.LlamaModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -39,14 +40,10 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
     private var tts: TextToSpeech? = null
 
-    private val downloadExecutor =
-        Executors.newSingleThreadExecutor()
+    private val downloadExecutor = Executors.newSingleThreadExecutor()
 
     private val prefs by lazy {
-        getSharedPreferences(
-            "jarvis_memory",
-            MODE_PRIVATE
-        )
+        getSharedPreferences("jarvis_memory", MODE_PRIVATE)
     }
 
     private val modelFile by lazy {
@@ -70,10 +67,13 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private var modelLoaded = false
 
     /*
-     * llama-android returns a native model handle.
-     * Long is used by the library API.
+     * Correct llama-android model type.
      */
-    private var llamaModel: Long? = null
+    private var llamaModel: LlamaModel? = null
+
+    // ============================================================
+    // ACTIVITY RESULT / VOICE
+    // ============================================================
 
     private val speechLauncher =
         registerForActivityResult(
@@ -87,16 +87,12 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                         RecognizerIntent.EXTRA_RESULTS
                     )
 
-                val spokenText =
-                    results?.firstOrNull()
+                val spokenText = results?.firstOrNull()
 
                 if (!spokenText.isNullOrBlank()) {
 
                     inputText.setText(spokenText)
-
-                    inputText.setSelection(
-                        spokenText.length
-                    )
+                    inputText.setSelection(spokenText.length)
 
                     sendMessage()
                 }
@@ -114,9 +110,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
             } else {
 
-                setStatus(
-                    "MICROPHONE PERMISSION DENIED"
-                )
+                setStatus("MICROPHONE PERMISSION DENIED")
 
                 addJarvisMessage(
                     "I need microphone permission before TALK can work."
@@ -124,17 +118,15 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             }
         }
 
-    override fun onCreate(
-        savedInstanceState: Bundle?
-    ) {
+    // ============================================================
+    // CREATE
+    // ============================================================
+
+    override fun onCreate(savedInstanceState: Bundle?) {
 
         super.onCreate(savedInstanceState)
 
-        tts =
-            TextToSpeech(
-                this,
-                this
-            )
+        tts = TextToSpeech(this, this)
 
         buildInterface()
 
@@ -165,50 +157,18 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
     private fun buildInterface() {
 
-        val background =
-            Color.rgb(
-                3,
-                10,
-                18
-            )
-
-        val panel =
-            Color.rgb(
-                8,
-                20,
-                31
-            )
-
-        val cyan =
-            Color.rgb(
-                0,
-                217,
-                255
-            )
-
-        val white =
-            Color.rgb(
-                235,
-                248,
-                255
-            )
-
-        val muted =
-            Color.rgb(
-                130,
-                170,
-                185
-            )
+        val background = Color.rgb(3, 10, 18)
+        val panel = Color.rgb(8, 20, 31)
+        val cyan = Color.rgb(0, 217, 255)
+        val white = Color.rgb(235, 248, 255)
+        val muted = Color.rgb(130, 170, 185)
 
         val root =
             LinearLayout(this).apply {
 
-                orientation =
-                    LinearLayout.VERTICAL
+                orientation = LinearLayout.VERTICAL
 
-                setBackgroundColor(
-                    background
-                )
+                setBackgroundColor(background)
 
                 setPadding(
                     dp(16),
@@ -221,18 +181,12 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         val title =
             TextView(this).apply {
 
-                text =
-                    "J A R V I S"
+                text = "J A R V I S"
+                textSize = 28f
 
-                textSize =
-                    28f
+                setTextColor(cyan)
 
-                setTextColor(
-                    cyan
-                )
-
-                gravity =
-                    Gravity.CENTER
+                gravity = Gravity.CENTER
 
                 setTypeface(
                     Typeface.DEFAULT,
@@ -250,18 +204,12 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         val subtitle =
             TextView(this).apply {
 
-                text =
-                    "PRIVATE ON-DEVICE AI"
+                text = "PRIVATE ON-DEVICE AI"
+                textSize = 12f
 
-                textSize =
-                    12f
+                setTextColor(muted)
 
-                setTextColor(
-                    muted
-                )
-
-                gravity =
-                    Gravity.CENTER
+                gravity = Gravity.CENTER
 
                 setPadding(
                     0,
@@ -274,25 +222,17 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         statusText =
             TextView(this).apply {
 
-                text =
-                    "SYSTEM: STARTING"
+                text = "SYSTEM: STARTING"
+                textSize = 12f
 
-                textSize =
-                    12f
-
-                setTextColor(
-                    cyan
-                )
+                setTextColor(cyan)
+                setBackgroundColor(panel)
 
                 setPadding(
                     dp(12),
                     dp(10),
                     dp(12),
                     dp(10)
-                )
-
-                setBackgroundColor(
-                    panel
                 )
             }
 
@@ -303,36 +243,24 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 android.R.attr.progressBarStyleHorizontal
             ).apply {
 
-                max =
-                    100
-
-                progress =
-                    0
-
-                visibility =
-                    View.GONE
+                max = 100
+                progress = 0
+                visibility = View.GONE
             }
 
         val scroll =
             ScrollView(this).apply {
 
-                isFillViewport =
-                    true
-
-                setBackgroundColor(
-                    panel
-                )
+                isFillViewport = true
+                setBackgroundColor(panel)
             }
 
         chatText =
             TextView(this).apply {
 
-                textSize =
-                    15f
+                textSize = 15f
 
-                setTextColor(
-                    white
-                )
+                setTextColor(white)
 
                 setPadding(
                     dp(14),
@@ -341,36 +269,30 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     dp(14)
                 )
 
-                setTextIsSelectable(
-                    true
-                )
+                setTextIsSelectable(true)
             }
 
+        /*
+         * FIX:
+         * ScrollView inherits from FrameLayout, so use
+         * FrameLayout.LayoutParams.
+         */
         scroll.addView(
             chatText,
-            ScrollView.LayoutParams(
-                ScrollView.LayoutParams.MATCH_PARENT,
-                ScrollView.LayoutParams.WRAP_CONTENT
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
             )
         )
 
         inputText =
             EditText(this).apply {
 
-                hint =
-                    "Ask Jarvis..."
+                hint = "Ask Jarvis..."
 
-                setHintTextColor(
-                    muted
-                )
-
-                setTextColor(
-                    white
-                )
-
-                setBackgroundColor(
-                    panel
-                )
+                setHintTextColor(muted)
+                setTextColor(white)
+                setBackgroundColor(panel)
 
                 setPadding(
                     dp(12),
@@ -379,18 +301,14 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     dp(12)
                 )
 
-                maxLines =
-                    4
+                maxLines = 4
             }
 
         val buttonRow =
             LinearLayout(this).apply {
 
-                orientation =
-                    LinearLayout.HORIZONTAL
-
-                gravity =
-                    Gravity.CENTER
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
             }
 
         talkButton =
@@ -421,9 +339,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 dp(52),
                 1f
             ).apply {
-
-                marginEnd =
-                    dp(6)
+                marginEnd = dp(6)
             }
         )
 
@@ -434,12 +350,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 dp(52),
                 1f
             ).apply {
-
-                marginStart =
-                    dp(3)
-
-                marginEnd =
-                    dp(3)
+                marginStart = dp(3)
+                marginEnd = dp(3)
             }
         )
 
@@ -450,16 +362,12 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 dp(52),
                 1f
             ).apply {
-
-                marginStart =
-                    dp(6)
+                marginStart = dp(6)
             }
         )
 
         root.addView(title)
-
         root.addView(subtitle)
-
         root.addView(statusText)
 
         root.addView(
@@ -468,9 +376,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(6)
             ).apply {
-
-                topMargin =
-                    dp(6)
+                topMargin = dp(6)
             }
         )
 
@@ -482,11 +388,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 1f
             ).apply {
 
-                topMargin =
-                    dp(10)
-
-                bottomMargin =
-                    dp(10)
+                topMargin = dp(10)
+                bottomMargin = dp(10)
             }
         )
 
@@ -496,9 +399,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-
-                bottomMargin =
-                    dp(10)
+                bottomMargin = dp(10)
             }
         )
 
@@ -507,12 +408,10 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         setContentView(root)
 
         sendButton.setOnClickListener {
-
             sendMessage()
         }
 
         talkButton.setOnClickListener {
-
             requestVoiceInput()
         }
 
@@ -528,12 +427,10 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 }
 
                 modelReady -> {
-
                     loadLocalModel()
                 }
 
                 else -> {
-
                     downloadModel()
                 }
             }
@@ -548,24 +445,17 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
         return Button(this).apply {
 
-            text =
-                label
+            text = label
 
-            setTextColor(
-                textColor
-            )
-
-            setBackgroundColor(
-                backgroundColor
-            )
+            setTextColor(textColor)
+            setBackgroundColor(backgroundColor)
 
             setTypeface(
                 Typeface.DEFAULT,
                 Typeface.BOLD
             )
 
-            isAllCaps =
-                false
+            isAllCaps = false
         }
     }
 
@@ -615,17 +505,17 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         generateAIResponse(message)
     }
 
-    private fun generateAIResponse(
-        message: String
-    ) {
+    // ============================================================
+    // REAL LOCAL AI RESPONSE
+    // ============================================================
 
-        val model =
-            llamaModel
+    private fun generateAIResponse(message: String) {
+
+        val model = llamaModel
 
         if (model == null) {
 
-            modelLoaded =
-                false
+            modelLoaded = false
 
             setStatus(
                 "SYSTEM: MODEL NOT LOADED"
@@ -634,11 +524,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             return
         }
 
-        sendButton.isEnabled =
-            false
-
-        talkButton.isEnabled =
-            false
+        sendButton.isEnabled = false
+        talkButton.isEnabled = false
 
         setStatus(
             "JARVIS: THINKING LOCALLY"
@@ -664,13 +551,13 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                         """
                         Previous user message:
                         $remembered
-
                         """.trimIndent()
                     }
 
                 val prompt =
                     """
                     $memoryContext
+
                     Current user message:
                     $message
                     """.trimIndent()
@@ -685,8 +572,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                             prompt = prompt,
                             systemPrompt =
                                 "You are JARVIS, a helpful, intelligent, concise private AI assistant running locally on the user's Android phone. " +
-                                "Answer naturally and directly. " +
-                                "Do not pretend you performed actions you cannot perform.",
+                                    "Answer naturally and directly. " +
+                                    "Do not pretend you performed actions you cannot perform.",
                             maxTokens = 256
                         )
                     }
@@ -702,13 +589,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
                 } else {
 
-                    addJarvisMessage(
-                        answer
-                    )
+                    addJarvisMessage(answer)
 
-                    speak(
-                        answer
-                    )
+                    speak(answer)
                 }
 
                 prefs.edit()
@@ -722,9 +605,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     "SYSTEM: AI READY"
                 )
 
-            } catch (
-                e: Exception
-            ) {
+            } catch (e: Exception) {
 
                 addJarvisMessage(
                     "Local AI error: " +
@@ -740,36 +621,27 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
             } finally {
 
-                sendButton.isEnabled =
-                    true
-
-                talkButton.isEnabled =
-                    true
+                sendButton.isEnabled = true
+                talkButton.isEnabled = true
             }
         }
     }
 
-    private fun addUserMessage(
-        message: String
-    ) {
+    private fun addUserMessage(message: String) {
 
         appendChat(
             "\nYOU:\n$message\n"
         )
     }
 
-    private fun addJarvisMessage(
-        message: String
-    ) {
+    private fun addJarvisMessage(message: String) {
 
         appendChat(
             "\nJARVIS:\n$message\n"
         )
     }
 
-    private fun appendChat(
-        message: String
-    ) {
+    private fun appendChat(message: String) {
 
         chatText.append(message)
     }
@@ -778,9 +650,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     // LOCAL MEMORY
     // ============================================================
 
-    private fun rememberLastUserMessage(
-        message: String
-    ) {
+    private fun rememberLastUserMessage(message: String) {
 
         prefs.edit()
             .putString(
@@ -816,8 +686,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             ContextCompat.checkSelfPermission(
                 this,
                 Manifest.permission.RECORD_AUDIO
-            ) ==
-            PackageManager.PERMISSION_GRANTED
+            ) == PackageManager.PERMISSION_GRANTED
         ) {
 
             startVoiceInput()
@@ -859,13 +728,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 "JARVIS: LISTENING"
             )
 
-            speechLauncher.launch(
-                intent
-            )
+            speechLauncher.launch(intent)
 
-        } catch (
-            e: Exception
-        ) {
+        } catch (e: Exception) {
 
             setStatus(
                 "VOICE INPUT UNAVAILABLE"
@@ -881,27 +746,18 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     // TEXT TO SPEECH
     // ============================================================
 
-    override fun onInit(
-        status: Int
-    ) {
+    override fun onInit(status: Int) {
 
-        if (
-            status ==
-            TextToSpeech.SUCCESS
-        ) {
+        if (status == TextToSpeech.SUCCESS) {
 
             tts?.language =
                 Locale.getDefault()
 
-            tts?.setSpeechRate(
-                1.0f
-            )
+            tts?.setSpeechRate(1.0f)
         }
     }
 
-    private fun speak(
-        text: String
-    ) {
+    private fun speak(text: String) {
 
         tts?.speak(
             text,
@@ -919,8 +775,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
         modelReady =
             modelFile.exists() &&
-                modelFile.length() >
-                100_000_000L
+                modelFile.length() > 100_000_000L
 
         if (modelReady) {
 
@@ -957,11 +812,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             return
         }
 
-        modelButton.isEnabled =
-            false
-
-        sendButton.isEnabled =
-            false
+        modelButton.isEnabled = false
+        sendButton.isEnabled = false
 
         setStatus(
             "SYSTEM: LOADING LOCAL AI"
@@ -998,33 +850,27 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                         )
                     }
 
-                llamaModel =
-                    loadedModel
+                /*
+                 * loadedModel is LlamaModel.
+                 */
+                llamaModel = loadedModel
 
-                modelLoaded =
-                    true
+                modelLoaded = true
 
-                modelButton.text =
-                    "AI ✓"
+                modelButton.text = "AI ✓"
 
                 setStatus(
                     "SYSTEM: AI READY"
                 )
 
                 addJarvisMessage(
-                    "Local AI loaded successfully. " +
-                        "I'm ready."
+                    "Local AI loaded successfully. I'm ready."
                 )
 
-            } catch (
-                e: Exception
-            ) {
+            } catch (e: Exception) {
 
-                llamaModel =
-                    null
-
-                modelLoaded =
-                    false
+                llamaModel = null
+                modelLoaded = false
 
                 modelButton.text =
                     "LOAD AI"
@@ -1043,11 +889,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
             } finally {
 
-                modelButton.isEnabled =
-                    true
-
-                sendButton.isEnabled =
-                    true
+                modelButton.isEnabled = true
+                sendButton.isEnabled = true
             }
         }
     }
@@ -1058,14 +901,12 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
     private fun downloadModel() {
 
-        modelButton.isEnabled =
-            false
+        modelButton.isEnabled = false
 
         progressBar.visibility =
             View.VISIBLE
 
-        progressBar.progress =
-            0
+        progressBar.progress = 0
 
         setStatus(
             "MODEL: CONNECTING"
@@ -1080,18 +921,12 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
             try {
 
-                modelFile.parentFile
-                    ?.mkdirs()
+                modelFile.parentFile?.mkdirs()
 
                 var downloaded =
-                    if (
-                        partialModelFile.exists()
-                    ) {
-
+                    if (partialModelFile.exists()) {
                         partialModelFile.length()
-
                     } else {
-
                         0L
                     }
 
@@ -1103,33 +938,31 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 var responseCode =
                     connection.responseCode
 
+                /*
+                 * If a partial file exists but the server does not
+                 * support Range requests, restart cleanly.
+                 */
                 if (
                     downloaded > 0L &&
-                    responseCode !=
-                    HttpURLConnection.HTTP_PARTIAL
+                    responseCode != HttpURLConnection.HTTP_PARTIAL
                 ) {
 
                     connection.disconnect()
 
                     partialModelFile.delete()
 
-                    downloaded =
-                        0L
+                    downloaded = 0L
 
                     connection =
-                        createModelConnection(
-                            0L
-                        )
+                        createModelConnection(0L)
 
                     responseCode =
                         connection.responseCode
                 }
 
                 if (
-                    responseCode !=
-                    HttpURLConnection.HTTP_OK &&
-                    responseCode !=
-                    HttpURLConnection.HTTP_PARTIAL
+                    responseCode != HttpURLConnection.HTTP_OK &&
+                    responseCode != HttpURLConnection.HTTP_PARTIAL
                 ) {
 
                     connection.disconnect()
@@ -1149,22 +982,19 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                         contentLength > 0L
                     ) {
 
-                        downloaded +
-                            contentLength
+                        downloaded + contentLength
 
                     } else {
 
                         contentLength
                     }
 
-                connection.inputStream.use {
-                    input ->
+                connection.inputStream.use { input ->
 
                     RandomAccessFile(
                         partialModelFile,
                         "rw"
-                    ).use {
-                        output ->
+                    ).use { output ->
 
                         if (
                             responseCode ==
@@ -1172,15 +1002,11 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                             downloaded > 0L
                         ) {
 
-                            output.seek(
-                                downloaded
-                            )
+                            output.seek(downloaded)
 
                         } else {
 
-                            output.setLength(
-                                0L
-                            )
+                            output.setLength(0L)
                         }
 
                         val buffer =
@@ -1197,9 +1023,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                         while (true) {
 
                             val bytesRead =
-                                input.read(
-                                    buffer
-                                )
+                                input.read(buffer)
 
                             if (bytesRead < 0) {
                                 break
@@ -1211,25 +1035,19 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                                 bytesRead
                             )
 
-                            current +=
-                                bytesRead
+                            current += bytesRead
 
                             val now =
                                 System.currentTimeMillis()
 
                             if (
-                                now -
-                                lastUiUpdate >=
-                                250L
+                                now - lastUiUpdate >= 250L
                             ) {
 
-                                lastUiUpdate =
-                                    now
+                                lastUiUpdate = now
 
                                 val percent =
-                                    if (
-                                        totalBytes > 0L
-                                    ) {
+                                    if (totalBytes > 0L) {
 
                                         (
                                             current *
@@ -1265,8 +1083,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
                 if (
                     !partialModelFile.exists() ||
-                    partialModelFile.length() <=
-                    100_000_000L
+                    partialModelFile.length() <= 100_000_000L
                 ) {
 
                     throw IllegalStateException(
@@ -1275,7 +1092,6 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 }
 
                 if (modelFile.exists()) {
-
                     modelFile.delete()
                 }
 
@@ -1311,12 +1127,14 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                         "Local AI model downloaded successfully."
                     )
 
+                    /*
+                     * Automatically load the model when
+                     * downloading finishes.
+                     */
                     loadLocalModel()
                 }
 
-            } catch (
-                e: Exception
-            ) {
+            } catch (e: Exception) {
 
                 runOnUiThread {
 
@@ -1335,7 +1153,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                             (
                                 e.message
                                     ?: "Network error"
-                                ) +
+                            ) +
                             ". The partial download has been kept. " +
                             "Press MODEL to resume."
                     )
@@ -1349,20 +1167,15 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     ): HttpURLConnection {
 
         return (
-            URL(
-                MODEL_URL
-            ).openConnection()
+            URL(MODEL_URL)
+                .openConnection()
                 as HttpURLConnection
             ).apply {
 
-                connectTimeout =
-                    20_000
+                connectTimeout = 20_000
+                readTimeout = 60_000
 
-                readTimeout =
-                    60_000
-
-                instanceFollowRedirects =
-                    true
+                instanceFollowRedirects = true
 
                 setRequestProperty(
                     "Accept-Encoding",
@@ -1390,17 +1203,12 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     // HELPERS
     // ============================================================
 
-    private fun setStatus(
-        text: String
-    ) {
+    private fun setStatus(text: String) {
 
-        statusText.text =
-            text
+        statusText.text = text
     }
 
-    private fun dp(
-        value: Int
-    ): Int {
+    private fun dp(value: Int): Int {
 
         return (
             value *
@@ -1410,22 +1218,23 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             ).toInt()
     }
 
+    // ============================================================
+    // CLEANUP
+    // ============================================================
+
     override fun onDestroy() {
 
         tts?.stop()
-
         tts?.shutdown()
 
         downloadExecutor.shutdownNow()
 
-        val model =
-            llamaModel
+        val model = llamaModel
 
         if (model != null) {
 
             /*
-             * Release the native model without blocking
-             * the Android UI thread.
+             * releaseModel expects LlamaModel.
              */
             Thread {
 
@@ -1433,24 +1242,18 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
                     kotlinx.coroutines.runBlocking {
 
-                        Llama.releaseModel(
-                            model
-                        )
+                        Llama.releaseModel(model)
                     }
 
-                } catch (
-                    ignored: Exception
-                ) {
+                } catch (_: Exception) {
+                    // App is already closing.
                 }
 
             }.start()
         }
 
-        llamaModel =
-            null
-
-        modelLoaded =
-            false
+        llamaModel = null
+        modelLoaded = false
 
         super.onDestroy()
     }
