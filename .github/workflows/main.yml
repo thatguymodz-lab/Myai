@@ -1,10 +1,9 @@
-name: Build Jarvis Android APK
+name: Build Jarvis Android V2 APK
 
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
   build:
@@ -14,32 +13,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Prepare Android SDK
+      - name: Android SDK
         shell: bash
         run: |
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-
-          echo "Android SDK: $ANDROID_HOME"
-          "$SDKMANAGER" --version
-
           yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
 
-          "$SDKMANAGER" \
-            "platforms;android-35" \
-            "build-tools;35.0.0"
-
-      - name: Set up Gradle
+      - name: Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
 
-      - name: Create Jarvis Android project
+      - name: Generate Jarvis V2
         shell: bash
         run: |
           mkdir -p app/src/main/java/com/novajarvis/android
@@ -69,12 +61,14 @@ jobs:
           cat > build.gradle.kts <<'EOF'
           plugins {
               id("com.android.application") version "8.9.1" apply false
+              id("org.jetbrains.kotlin.android") version "2.1.20" apply false
           }
           EOF
 
           cat > app/build.gradle.kts <<'EOF'
           plugins {
               id("com.android.application")
+              id("org.jetbrains.kotlin.android")
           }
 
           android {
@@ -85,31 +79,37 @@ jobs:
                   applicationId = "com.novajarvis.android"
                   minSdk = 26
                   targetSdk = 35
-                  versionCode = 1
-                  versionName = "0.1"
-              }
-
-              buildTypes {
-                  release {
-                      isMinifyEnabled = false
-                  }
+                  versionCode = 2
+                  versionName = "0.2"
               }
 
               compileOptions {
                   sourceCompatibility = JavaVersion.VERSION_17
                   targetCompatibility = JavaVersion.VERSION_17
               }
+
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          }
+
+          dependencies {
+              implementation("androidx.core:core-ktx:1.15.0")
+              implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+              implementation("dev.ffmpegkit-maintained:llama-android:0.1.1")
           }
           EOF
 
           cat > app/src/main/AndroidManifest.xml <<'EOF'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.INTERNET" />
-              <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 
               <application
                   android:allowBackup="true"
                   android:label="Jarvis"
+                  android:extractNativeLibs="true"
                   android:theme="@style/AppTheme">
 
                   <activity
@@ -117,167 +117,1437 @@ jobs:
                       android:exported="true">
 
                       <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
                       </intent-filter>
 
                   </activity>
+
               </application>
+
           </manifest>
           EOF
 
           cat > app/src/main/res/values/styles.xml <<'EOF'
           <resources>
-              <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
+
+              <style
+                  name="AppTheme"
+                  parent="android:style/Theme.Material.NoActionBar">
+
                   <item name="android:fontFamily">sans</item>
-                  <item name="android:windowLightStatusBar">false</item>
-                  <item name="android:statusBarColor">#020810</item>
-                  <item name="android:navigationBarColor">#020810</item>
+
+                  <item name="android:windowLightStatusBar">
+                      false
+                  </item>
+
+                  <item name="android:statusBarColor">
+                      #020811
+                  </item>
+
+                  <item name="android:navigationBarColor">
+                      #020811
+                  </item>
+
+                  <item name="android:windowLightNavigationBar">
+                      false
+                  </item>
+
               </style>
+
           </resources>
           EOF
 
-          cat > app/src/main/java/com/novajarvis/android/MainActivity.java <<'EOF'
-          package com.novajarvis.android;
+          cat > app/src/main/java/com/novajarvis/android/MainActivity.kt <<'EOF'
+          package com.novajarvis.android
 
-          import android.app.Activity;
-          import android.graphics.Color;
-          import android.os.Bundle;
-          import android.view.Gravity;
-          import android.view.ViewGroup;
-          import android.widget.Button;
-          import android.widget.EditText;
-          import android.widget.LinearLayout;
-          import android.widget.ScrollView;
-          import android.widget.TextView;
+          import android.Manifest
+          import android.app.Activity
+          import android.app.AlertDialog
+          import android.content.Intent
+          import android.content.pm.PackageManager
+          import android.graphics.Color
+          import android.graphics.drawable.GradientDrawable
+          import android.os.Bundle
+          import android.speech.RecognizerIntent
+          import android.speech.tts.TextToSpeech
+          import android.view.Gravity
+          import android.view.View
+          import android.webkit.WebView
+          import android.webkit.WebViewClient
+          import android.widget.Button
+          import android.widget.EditText
+          import android.widget.LinearLayout
+          import android.widget.ScrollView
+          import android.widget.TextView
+          import androidx.core.app.ActivityCompat
+          import androidx.core.content.ContextCompat
+          import androidx.core.view.ViewCompat
+          import androidx.core.view.WindowInsetsCompat
+          import androidx.lifecycle.lifecycleScope
+          import dev.ffmpegkit.llama.Llama
+          import dev.ffmpegkit.llama.LlamaConfig
+          import kotlinx.coroutines.Dispatchers
+          import kotlinx.coroutines.launch
+          import kotlinx.coroutines.withContext
+          import java.io.File
+          import java.net.HttpURLConnection
+          import java.net.URL
+          import java.util.Locale
 
-          public class MainActivity extends Activity {
+          class MainActivity :
+              Activity(),
+              TextToSpeech.OnInitListener {
 
-              private LinearLayout chat;
-              private EditText input;
+              private val cyan =
+                  Color.rgb(55, 220, 255)
 
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
+              private val background =
+                  Color.rgb(2, 8, 17)
 
-                  int cyan = Color.rgb(66, 217, 255);
-                  int background = Color.rgb(2, 8, 16);
+              private val panel =
+                  Color.rgb(7, 22, 35)
 
-                  LinearLayout root = new LinearLayout(this);
-                  root.setOrientation(LinearLayout.VERTICAL);
-                  root.setPadding(32, 32, 32, 32);
-                  root.setBackgroundColor(background);
+              private lateinit var root:
+                  LinearLayout
 
-                  TextView title = new TextView(this);
-                  title.setText("JARVIS // ANDROID");
-                  title.setTextColor(cyan);
-                  title.setTextSize(26);
-                  title.setGravity(Gravity.CENTER_HORIZONTAL);
-                  root.addView(title);
+              private lateinit var chat:
+                  LinearLayout
 
-                  TextView status = new TextView(this);
-                  status.setText("FAST  •  TALK  •  LOCAL-FIRST");
-                  status.setTextColor(Color.LTGRAY);
-                  status.setGravity(Gravity.CENTER_HORIZONTAL);
-                  status.setPadding(0, 10, 0, 24);
-                  root.addView(status);
+              private lateinit var scroll:
+                  ScrollView
 
-                  ScrollView scroll = new ScrollView(this);
-                  chat = new LinearLayout(this);
-                  chat.setOrientation(LinearLayout.VERTICAL);
-                  scroll.addView(chat);
+              private lateinit var input:
+                  EditText
 
-                  LinearLayout.LayoutParams scrollParams =
-                      new LinearLayout.LayoutParams(
-                          ViewGroup.LayoutParams.MATCH_PARENT,
-                          0,
-                          1
-                      );
+              private lateinit var status:
+                  TextView
 
-                  root.addView(scroll, scrollParams);
+              private lateinit var tts:
+                  TextToSpeech
 
-                  addMessage("JARVIS", "Android core online. Ready.");
+              private var model:
+                  dev.ffmpegkit.llama.LlamaModel? =
+                  null
 
-                  LinearLayout controls = new LinearLayout(this);
-                  controls.setOrientation(LinearLayout.HORIZONTAL);
-
-                  input = new EditText(this);
-                  input.setHint("Talk to Jarvis...");
-                  input.setHintTextColor(Color.GRAY);
-                  input.setTextColor(Color.WHITE);
-                  input.setSingleLine(false);
-
-                  controls.addView(
-                      input,
-                      new LinearLayout.LayoutParams(
-                          0,
-                          ViewGroup.LayoutParams.WRAP_CONTENT,
-                          1
-                      )
-                  );
-
-                  Button talk = new Button(this);
-                  talk.setText("TALK");
-
-                  talk.setOnClickListener(v -> {
-                      String message = input.getText().toString().trim();
-
-                      if (!message.isEmpty()) {
-                          addMessage("YOU", message);
-                          addMessage(
-                              "JARVIS",
-                              "Message received. Local AI will be connected next."
-                          );
-                          input.setText("");
-                      }
-                  });
-
-                  controls.addView(talk);
-
-                  root.addView(controls);
-
-                  setContentView(root);
+              private val modelFile by lazy {
+                  File(
+                      getExternalFilesDir("models"),
+                      "jarvis.gguf"
+                  )
               }
 
-              private void addMessage(String who, String message) {
-                  TextView view = new TextView(this);
-                  view.setText(who + ": " + message);
-                  view.setTextSize(17);
-                  view.setPadding(0, 14, 0, 14);
+              private val memoryFile by lazy {
+                  File(
+                      filesDir,
+                      "jarvis_memory.txt"
+                  )
+              }
 
-                  if (who.equals("JARVIS")) {
-                      view.setTextColor(Color.rgb(66, 217, 255));
+              private val previewFile by lazy {
+                  File(
+                      filesDir,
+                      "jarvis_preview.html"
+                  )
+              }
+
+              /*
+               * Compact starter local AI.
+               *
+               * Downloaded once after installation.
+               * The model is not bundled into every APK.
+               */
+              private val modelUrl =
+                  "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf?download=true"
+
+              override fun onCreate(
+                  savedInstanceState: Bundle?
+              ) {
+                  super.onCreate(savedInstanceState)
+
+                  window.statusBarColor =
+                      background
+
+                  window.navigationBarColor =
+                      background
+
+                  tts =
+                      TextToSpeech(
+                          this,
+                          this
+                      )
+
+                  buildInterface()
+
+                  restoreMemory()
+
+                  if (modelFile.exists()) {
+                      loadModel()
                   } else {
-                      view.setTextColor(Color.WHITE);
+                      addMessage(
+                          "JARVIS",
+                          "V2 online. Tap MODEL once to download my local AI brain.",
+                          false
+                      )
+                  }
+              }
+
+              private fun panelShape():
+                  GradientDrawable {
+
+                  return GradientDrawable().apply {
+
+                      setColor(panel)
+
+                      cornerRadius =
+                          28f
+
+                      setStroke(
+                          1,
+                          Color.rgb(
+                              22,
+                              94,
+                              120
+                          )
+                      )
+                  }
+              }
+
+              private fun buildInterface() {
+
+                  root =
+                      LinearLayout(this).apply {
+
+                          orientation =
+                              LinearLayout.VERTICAL
+
+                          setBackgroundColor(
+                              background
+                          )
+                      }
+
+                  /*
+                   * Keep Jarvis clear of the
+                   * Samsung status bar and
+                   * navigation controls.
+                   */
+                  ViewCompat
+                      .setOnApplyWindowInsetsListener(
+                          root
+                      ) { view, insets ->
+
+                          val bars =
+                              insets.getInsets(
+                                  WindowInsetsCompat
+                                      .Type
+                                      .systemBars()
+                              )
+
+                          view.setPadding(
+                              20,
+                              bars.top + 10,
+                              20,
+                              bars.bottom + 10
+                          )
+
+                          insets
+                      }
+
+                  val title =
+                      TextView(this).apply {
+
+                          text =
+                              "JARVIS // ANDROID"
+
+                          textSize =
+                              25f
+
+                          gravity =
+                              Gravity.CENTER
+
+                          setTextColor(
+                              cyan
+                          )
+                      }
+
+                  root.addView(
+                      title
+                  )
+
+                  status =
+                      TextView(this).apply {
+
+                          text =
+                              "V2 • LOCAL AI • VOICE • BUILDER"
+
+                          textSize =
+                              12f
+
+                          gravity =
+                              Gravity.CENTER
+
+                          setTextColor(
+                              Color.LTGRAY
+                          )
+
+                          setPadding(
+                              0,
+                              4,
+                              0,
+                              10
+                          )
+                      }
+
+                  root.addView(
+                      status
+                  )
+
+                  val tools =
+                      LinearLayout(this).apply {
+
+                          orientation =
+                              LinearLayout.HORIZONTAL
+                      }
+
+                  fun toolButton(
+                      label: String,
+                      action: () -> Unit
+                  ): Button {
+
+                      return Button(this).apply {
+
+                          text =
+                              label
+
+                          textSize =
+                              11f
+
+                          setOnClickListener {
+                              action()
+                          }
+                      }
                   }
 
-                  chat.addView(view);
+                  tools.addView(
+                      toolButton(
+                          "MODEL"
+                      ) {
+                          showModelDialog()
+                      },
+                      LinearLayout.LayoutParams(
+                          0,
+                          -2,
+                          1f
+                      )
+                  )
+
+                  tools.addView(
+                      toolButton(
+                          "BUILDER"
+                      ) {
+                          showBuilderDialog()
+                      },
+                      LinearLayout.LayoutParams(
+                          0,
+                          -2,
+                          1f
+                      )
+                  )
+
+                  tools.addView(
+                      toolButton(
+                          "CLEAR"
+                      ) {
+                          clearMemory()
+                      },
+                      LinearLayout.LayoutParams(
+                          0,
+                          -2,
+                          1f
+                      )
+                  )
+
+                  root.addView(
+                      tools
+                  )
+
+                  scroll =
+                      ScrollView(this)
+
+                  chat =
+                      LinearLayout(this).apply {
+
+                          orientation =
+                              LinearLayout.VERTICAL
+
+                          setPadding(
+                              0,
+                              8,
+                              0,
+                              8
+                          )
+                      }
+
+                  scroll.addView(
+                      chat
+                  )
+
+                  root.addView(
+                      scroll,
+                      LinearLayout.LayoutParams(
+                          -1,
+                          0,
+                          1f
+                      )
+                  )
+
+                  val inputBar =
+                      LinearLayout(this).apply {
+
+                          orientation =
+                              LinearLayout.HORIZONTAL
+
+                          gravity =
+                              Gravity.CENTER_VERTICAL
+
+                          background =
+                              panelShape()
+
+                          setPadding(
+                              8,
+                              4,
+                              8,
+                              4
+                          )
+                      }
+
+                  input =
+                      EditText(this).apply {
+
+                          hint =
+                              "Ask Jarvis..."
+
+                          setHintTextColor(
+                              Color.GRAY
+                          )
+
+                          setTextColor(
+                              Color.WHITE
+                          )
+
+                          setBackgroundColor(
+                              Color.TRANSPARENT
+                          )
+
+                          maxLines =
+                              4
+                      }
+
+                  inputBar.addView(
+                      input,
+                      LinearLayout.LayoutParams(
+                          0,
+                          -2,
+                          1f
+                      )
+                  )
+
+                  val microphone =
+                      Button(this).apply {
+
+                          text =
+                              "MIC"
+
+                          setOnClickListener {
+                              startVoice()
+                          }
+                      }
+
+                  inputBar.addView(
+                      microphone
+                  )
+
+                  val send =
+                      Button(this).apply {
+
+                          text =
+                              "SEND"
+
+                          setOnClickListener {
+                              sendMessage()
+                          }
+                      }
+
+                  inputBar.addView(
+                      send
+                  )
+
+                  root.addView(
+                      inputBar
+                  )
+
+                  setContentView(
+                      root
+                  )
+              }
+
+              private fun addMessage(
+                  who: String,
+                  message: String,
+                  save: Boolean = true
+              ) {
+
+                  val messageView =
+                      TextView(this).apply {
+
+                          text =
+                              "$who\n$message"
+
+                          textSize =
+                              16f
+
+                          setTextColor(
+                              if (
+                                  who == "JARVIS"
+                              ) {
+                                  cyan
+                              } else {
+                                  Color.WHITE
+                              }
+                          )
+
+                          background =
+                              panelShape()
+
+                          setPadding(
+                              20,
+                              15,
+                              20,
+                              15
+                          )
+                      }
+
+                  val params =
+                      LinearLayout.LayoutParams(
+                          -1,
+                          -2
+                      )
+
+                  params.setMargins(
+                      0,
+                      7,
+                      0,
+                      7
+                  )
+
+                  chat.addView(
+                      messageView,
+                      params
+                  )
+
+                  if (save) {
+
+                      val type =
+                          if (
+                              who == "YOU"
+                          ) {
+                              "U"
+                          } else {
+                              "A"
+                          }
+
+                      memoryFile.appendText(
+                          type +
+                          "|" +
+                          message.replace(
+                              "\n",
+                              " "
+                          ) +
+                          "\n"
+                      )
+                  }
+
+                  scroll.post {
+                      scroll.fullScroll(
+                          View.FOCUS_DOWN
+                      )
+                  }
+              }
+
+              private fun restoreMemory() {
+
+                  if (
+                      !memoryFile.exists()
+                  ) {
+                      return
+                  }
+
+                  memoryFile
+                      .readLines()
+                      .takeLast(40)
+                      .forEach { line ->
+
+                          val parts =
+                              line.split(
+                                  "|",
+                                  limit = 2
+                              )
+
+                          if (
+                              parts.size == 2
+                          ) {
+
+                              addMessage(
+                                  if (
+                                      parts[0] == "U"
+                                  ) {
+                                      "YOU"
+                                  } else {
+                                      "JARVIS"
+                                  },
+                                  parts[1],
+                                  false
+                              )
+                          }
+                      }
+              }
+
+              private fun clearMemory() {
+
+                  memoryFile.delete()
+
+                  chat.removeAllViews()
+
+                  addMessage(
+                      "JARVIS",
+                      "Conversation memory cleared.",
+                      false
+                  )
+              }
+
+              private fun sendMessage() {
+
+                  val question =
+                      input
+                          .text
+                          .toString()
+                          .trim()
+
+                  if (
+                      question.isEmpty()
+                  ) {
+                      return
+                  }
+
+                  input.setText(
+                      ""
+                  )
+
+                  addMessage(
+                      "YOU",
+                      question
+                  )
+
+                  askLocalAI(
+                      question
+                  )
+              }
+
+              private fun askLocalAI(
+                  prompt: String
+              ) {
+
+                  if (
+                      !modelFile.exists()
+                  ) {
+
+                      addMessage(
+                          "JARVIS",
+                          "My local model is not installed yet. Tap MODEL and choose DOWNLOAD."
+                      )
+
+                      return
+                  }
+
+                  status.text =
+                      "THINKING LOCALLY…"
+
+                  lifecycleScope.launch {
+
+                      try {
+
+                          ensureModel()
+
+                          val recent =
+                              if (
+                                  memoryFile.exists()
+                              ) {
+
+                                  memoryFile
+                                      .readLines()
+                                      .takeLast(12)
+                                      .joinToString(
+                                          "\n"
+                                      )
+
+                              } else {
+
+                                  ""
+                              }
+
+                          val result =
+                              withContext(
+                                  Dispatchers.Default
+                              ) {
+
+                                  Llama.complete(
+                                      model!!,
+                                      prompt =
+                                          "Recent conversation:\n" +
+                                          recent +
+                                          "\n\nUser: " +
+                                          prompt,
+                                      systemPrompt =
+                                          "You are Jarvis, a private on-device Android assistant. Be concise, useful and accurate.",
+                                      maxTokens =
+                                          384
+                                  )
+                              }
+
+                          addMessage(
+                              "JARVIS",
+                              result.text
+                          )
+
+                          speak(
+                              result.text
+                          )
+
+                          status.text =
+                              "LOCAL AI READY"
+
+                      } catch (
+                          error: Exception
+                      ) {
+
+                          status.text =
+                              "AI ERROR"
+
+                          addMessage(
+                              "JARVIS",
+                              "Local AI error: " +
+                              error.message
+                          )
+                      }
+                  }
+              }
+
+              private suspend fun ensureModel() {
+
+                  if (
+                      model != null
+                  ) {
+                      return
+                  }
+
+                  model =
+                      withContext(
+                          Dispatchers.Default
+                      ) {
+
+                          Llama.loadModel(
+                              modelPath =
+                                  modelFile.absolutePath,
+
+                              config =
+                                  LlamaConfig(
+                                      contextSize =
+                                          2048,
+
+                                      threads =
+                                          4
+                                  )
+                          )
+                      }
+              }
+
+              private fun loadModel() {
+
+                  status.text =
+                      "LOADING LOCAL AI…"
+
+                  lifecycleScope.launch {
+
+                      try {
+
+                          ensureModel()
+
+                          status.text =
+                              "LOCAL AI READY • OFFLINE"
+
+                      } catch (
+                          error: Exception
+                      ) {
+
+                          status.text =
+                              "MODEL ERROR"
+
+                          addMessage(
+                              "JARVIS",
+                              "Model load failed: " +
+                              error.message
+                          )
+                      }
+                  }
+              }
+
+              private fun showModelDialog() {
+
+                  val installed =
+                      modelFile.exists()
+
+                  val message =
+                      if (
+                          installed
+                      ) {
+
+                          "Local model installed: " +
+                          (
+                              modelFile.length() /
+                              1024 /
+                              1024
+                          ) +
+                          " MB.\n\n" +
+                          "Jarvis can use this model without a cloud AI service."
+
+                      } else {
+
+                          "Download Jarvis's compact starter AI model.\n\n" +
+                          "It is roughly 400 MB, so Wi-Fi is recommended.\n\n" +
+                          "You only need to download it once."
+                      }
+
+                  AlertDialog
+                      .Builder(this)
+                      .setTitle(
+                          "Jarvis Local AI"
+                      )
+                      .setMessage(
+                          message
+                      )
+                      .setPositiveButton(
+                          if (
+                              installed
+                          ) {
+                              "LOAD"
+                          } else {
+                              "DOWNLOAD"
+                          }
+                      ) { _, _ ->
+
+                          if (
+                              installed
+                          ) {
+                              loadModel()
+                          } else {
+                              downloadModel()
+                          }
+                      }
+                      .setNegativeButton(
+                          "CLOSE",
+                          null
+                      )
+                      .show()
+              }
+
+              private fun downloadModel() {
+
+                  status.text =
+                      "STARTING MODEL DOWNLOAD…"
+
+                  lifecycleScope.launch(
+                      Dispatchers.IO
+                  ) {
+
+                      try {
+
+                          modelFile
+                              .parentFile
+                              ?.mkdirs()
+
+                          val temporary =
+                              File(
+                                  modelFile.parentFile,
+                                  "jarvis.tmp"
+                              )
+
+                          val connection =
+                              URL(
+                                  modelUrl
+                              )
+                                  .openConnection()
+                                  as HttpURLConnection
+
+                          connection
+                              .instanceFollowRedirects =
+                              true
+
+                          connection
+                              .connectTimeout =
+                              20000
+
+                          connection
+                              .readTimeout =
+                              60000
+
+                          connection
+                              .inputStream
+                              .use { source ->
+
+                                  temporary
+                                      .outputStream()
+                                      .use { destination ->
+
+                                          val buffer =
+                                              ByteArray(
+                                                  256 * 1024
+                                              )
+
+                                          var total =
+                                              0L
+
+                                          while (
+                                              true
+                                          ) {
+
+                                              val count =
+                                                  source.read(
+                                                      buffer
+                                                  )
+
+                                              if (
+                                                  count <= 0
+                                              ) {
+                                                  break
+                                              }
+
+                                              destination.write(
+                                                  buffer,
+                                                  0,
+                                                  count
+                                              )
+
+                                              total +=
+                                                  count
+
+                                              runOnUiThread {
+
+                                                  status.text =
+                                                      "DOWNLOADING • " +
+                                                      (
+                                                          total /
+                                                          1024 /
+                                                          1024
+                                                      ) +
+                                                      " MB"
+                                              }
+                                          }
+                                      }
+                              }
+
+                          if (
+                              temporary.length() <
+                              50L *
+                              1024 *
+                              1024
+                          ) {
+
+                              throw Exception(
+                                  "download incomplete"
+                              )
+                          }
+
+                          if (
+                              modelFile.exists()
+                          ) {
+                              modelFile.delete()
+                          }
+
+                          if (
+                              !temporary.renameTo(
+                                  modelFile
+                              )
+                          ) {
+
+                              throw Exception(
+                                  "could not save model"
+                              )
+                          }
+
+                          runOnUiThread {
+
+                              addMessage(
+                                  "JARVIS",
+                                  "Model downloaded successfully. Loading local AI now."
+                              )
+
+                              loadModel()
+                          }
+
+                      } catch (
+                          error: Exception
+                      ) {
+
+                          runOnUiThread {
+
+                              status.text =
+                                  "DOWNLOAD ERROR"
+
+                              addMessage(
+                                  "JARVIS",
+                                  "Model download failed: " +
+                                  error.message +
+                                  ". Tap MODEL to retry."
+                              )
+                          }
+                      }
+                  }
+              }
+
+              private fun startVoice() {
+
+                  if (
+                      ContextCompat
+                          .checkSelfPermission(
+                              this,
+                              Manifest.permission
+                                  .RECORD_AUDIO
+                          ) !=
+                      PackageManager
+                          .PERMISSION_GRANTED
+                  ) {
+
+                      ActivityCompat
+                          .requestPermissions(
+                              this,
+                              arrayOf(
+                                  Manifest.permission
+                                      .RECORD_AUDIO
+                              ),
+                              7
+                          )
+
+                      return
+                  }
+
+                  try {
+
+                      val voiceIntent =
+                          Intent(
+                              RecognizerIntent
+                                  .ACTION_RECOGNIZE_SPEECH
+                          )
+
+                      voiceIntent.putExtra(
+                          RecognizerIntent
+                              .EXTRA_LANGUAGE_MODEL,
+                          RecognizerIntent
+                              .LANGUAGE_MODEL_FREE_FORM
+                      )
+
+                      voiceIntent.putExtra(
+                          RecognizerIntent
+                              .EXTRA_LANGUAGE,
+                          Locale.getDefault()
+                      )
+
+                      voiceIntent.putExtra(
+                          RecognizerIntent
+                              .EXTRA_PROMPT,
+                          "Speak to Jarvis"
+                      )
+
+                      startActivityForResult(
+                          voiceIntent,
+                          77
+                      )
+
+                  } catch (
+                      error: Exception
+                  ) {
+
+                      addMessage(
+                          "JARVIS",
+                          "Speech recognition is not available on this device."
+                      )
+                  }
+              }
+
+              @Deprecated(
+                  "Legacy result API used for compatibility"
+              )
+              override fun onActivityResult(
+                  requestCode: Int,
+                  resultCode: Int,
+                  data: Intent?
+              ) {
+
+                  super.onActivityResult(
+                      requestCode,
+                      resultCode,
+                      data
+                  )
+
+                  if (
+                      requestCode == 77 &&
+                      resultCode == RESULT_OK
+                  ) {
+
+                      val spoken =
+                          data
+                              ?.getStringArrayListExtra(
+                                  RecognizerIntent
+                                      .EXTRA_RESULTS
+                              )
+                              ?.firstOrNull()
+                              ?: return
+
+                      input.setText(
+                          spoken
+                      )
+
+                      sendMessage()
+                  }
+              }
+
+              override fun onRequestPermissionsResult(
+                  requestCode: Int,
+                  permissions: Array<out String>,
+                  grantResults: IntArray
+              ) {
+
+                  super.onRequestPermissionsResult(
+                      requestCode,
+                      permissions,
+                      grantResults
+                  )
+
+                  if (
+                      requestCode == 7 &&
+                      grantResults
+                          .firstOrNull() ==
+                      PackageManager
+                          .PERMISSION_GRANTED
+                  ) {
+
+                      startVoice()
+                  }
+              }
+
+              override fun onInit(
+                  status: Int
+              ) {
+
+                  if (
+                      status ==
+                      TextToSpeech.SUCCESS
+                  ) {
+
+                      tts.language =
+                          Locale.UK
+                  }
+              }
+
+              private fun speak(
+                  message: String
+              ) {
+
+                  tts.speak(
+                      message,
+                      TextToSpeech
+                          .QUEUE_FLUSH,
+                      null,
+                      "jarvis-response"
+                  )
+              }
+
+              private fun showBuilderDialog() {
+
+                  val description =
+                      EditText(this).apply {
+
+                          hint =
+                              "Example: futuristic portfolio with animated cards"
+
+                          setTextColor(
+                              Color.BLACK
+                          )
+
+                          setHintTextColor(
+                              Color.GRAY
+                          )
+                      }
+
+                  AlertDialog
+                      .Builder(this)
+                      .setTitle(
+                          "Jarvis AI Website Builder"
+                      )
+                      .setView(
+                          description
+                      )
+                      .setPositiveButton(
+                          "BUILD"
+                      ) { _, _ ->
+
+                          buildWebsite(
+                              description
+                                  .text
+                                  .toString()
+                                  .trim()
+                          )
+                      }
+                      .setNeutralButton(
+                          "LAST PREVIEW"
+                      ) { _, _ ->
+
+                          if (
+                              previewFile.exists()
+                          ) {
+
+                              showWebsite(
+                                  previewFile
+                                      .readText()
+                              )
+
+                          } else {
+
+                              addMessage(
+                                  "JARVIS",
+                                  "No website preview has been created yet."
+                              )
+                          }
+                      }
+                      .setNegativeButton(
+                          "CLOSE",
+                          null
+                      )
+                      .show()
+              }
+
+              private fun buildWebsite(
+                  request: String
+              ) {
+
+                  if (
+                      request.isEmpty()
+                  ) {
+                      return
+                  }
+
+                  if (
+                      !modelFile.exists()
+                  ) {
+
+                      addMessage(
+                          "JARVIS",
+                          "Install the local AI model first. Then I can generate the website on your phone."
+                      )
+
+                      return
+                  }
+
+                  status.text =
+                      "BUILDING WEBSITE LOCALLY…"
+
+                  lifecycleScope.launch {
+
+                      try {
+
+                          ensureModel()
+
+                          val result =
+                              withContext(
+                                  Dispatchers.Default
+                              ) {
+
+                                  Llama.complete(
+                                      model!!,
+
+                                      prompt =
+                                          "Build this website: " +
+                                          request,
+
+                                      systemPrompt =
+                                          "You are an expert web developer. Return only one complete HTML document. Put all CSS and JavaScript inline. Do not use markdown code fences.",
+
+                                      maxTokens =
+                                          1400
+                                  )
+                              }
+
+                          var html =
+                              result
+                                  .text
+                                  .trim()
+
+                          if (
+                              html.startsWith(
+                                  "```html"
+                              )
+                          ) {
+
+                              html =
+                                  html
+                                      .removePrefix(
+                                          "```html"
+                                      )
+                                      .removeSuffix(
+                                          "```"
+                                      )
+                                      .trim()
+
+                          } else if (
+                              html.startsWith(
+                                  "```"
+                              )
+                          ) {
+
+                              html =
+                                  html
+                                      .removePrefix(
+                                          "```"
+                                      )
+                                      .removeSuffix(
+                                          "```"
+                                      )
+                                      .trim()
+                          }
+
+                          previewFile.writeText(
+                              html
+                          )
+
+                          showWebsite(
+                              html
+                          )
+
+                          status.text =
+                              "WEBSITE READY"
+
+                      } catch (
+                          error: Exception
+                      ) {
+
+                          status.text =
+                              "BUILDER ERROR"
+
+                          addMessage(
+                              "JARVIS",
+                              "Website builder error: " +
+                              error.message
+                          )
+                      }
+                  }
+              }
+
+              private fun showWebsite(
+                  html: String
+              ) {
+
+                  val web =
+                      WebView(this).apply {
+
+                          setBackgroundColor(
+                              Color.WHITE
+                          )
+
+                          settings
+                              .javaScriptEnabled =
+                              true
+
+                          webViewClient =
+                              WebViewClient()
+
+                          loadDataWithBaseURL(
+                              "https://jarvis.local/",
+                              html,
+                              "text/html",
+                              "UTF-8",
+                              null
+                          )
+                      }
+
+                  AlertDialog
+                      .Builder(this)
+                      .setTitle(
+                          "Jarvis Website Preview"
+                      )
+                      .setView(
+                          web
+                      )
+                      .setPositiveButton(
+                          "CLOSE",
+                          null
+                      )
+                      .show()
+              }
+
+              override fun onDestroy() {
+
+                  tts.stop()
+
+                  tts.shutdown()
+
+                  val loadedModel =
+                      model
+
+                  if (
+                      loadedModel != null
+                  ) {
+
+                      lifecycleScope.launch {
+
+                          try {
+
+                              Llama.releaseModel(
+                                  loadedModel
+                              )
+
+                          } catch (
+                              ignored: Exception
+                          ) {
+                          }
+                      }
+                  }
+
+                  super.onDestroy()
               }
           }
           EOF
 
-      - name: Build Jarvis APK
+      - name: Build Jarvis V2 APK
         shell: bash
         run: |
           gradle --no-daemon :app:assembleDebug
 
-      - name: Verify APK exists
+      - name: Verify Jarvis V2 APK
         shell: bash
         run: |
           APK="app/build/outputs/apk/debug/app-debug.apk"
 
           if [ ! -f "$APK" ]; then
-            echo "ERROR: APK was not created."
+            echo "Jarvis V2 APK was not created."
             exit 1
           fi
 
-          echo "APK successfully created:"
+          echo "Jarvis V2 APK created:"
           ls -lh "$APK"
 
-      - name: Upload Jarvis Android APK
+      - name: Upload Jarvis V2 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Jarvis-Android-APK
+          name: Jarvis-Android-V2-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
