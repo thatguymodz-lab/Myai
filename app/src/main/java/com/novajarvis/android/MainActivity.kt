@@ -81,6 +81,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         ) { result ->
 
             if (result.resultCode == RESULT_OK) {
+
                 val results =
                     result.data?.getStringArrayListExtra(
                         RecognizerIntent.EXTRA_RESULTS
@@ -105,6 +106,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 startVoiceInput()
             } else {
                 setStatus("MICROPHONE PERMISSION DENIED")
+
                 addJarvisMessage(
                     "I need microphone permission before TALK can work."
                 )
@@ -128,6 +130,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         addJarvisMessage("JARVIS Android initialized.")
 
         workspace.getCurrentProject()?.let { current ->
+
             addJarvisMessage(
                 "Project workspace restored: " +
                     "${current.name} (${projectLabel(current.type)})."
@@ -137,6 +140,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         if (modelReady) {
             loadLocalModel()
         } else {
+
             addJarvisMessage(
                 "The local AI model is not installed yet. " +
                     "Press MODEL to download it."
@@ -301,23 +305,34 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
         setContentView(root)
 
-        sendButton.setOnClickListener { sendMessage() }
-        talkButton.setOnClickListener { requestVoiceInput() }
+        sendButton.setOnClickListener {
+            sendMessage()
+        }
+
+        talkButton.setOnClickListener {
+            requestVoiceInput()
+        }
 
         buildButton.setOnClickListener {
+
             builderMode = !builderMode
             updateBuilderButton()
 
             if (builderMode) {
+
                 addJarvisMessage(
                     "Builder Mode enabled. Tell me to create a website, " +
                         "a 2D game, or a 3D game."
                 )
+
                 setStatus("BUILDER: READY")
+
             } else {
+
                 addJarvisMessage(
                     "Builder Mode disabled. Normal Jarvis chat restored."
                 )
+
                 setStatus("SYSTEM: AI READY")
             }
         }
@@ -327,19 +342,28 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         }
 
         modelButton.setOnClickListener {
+
             when {
+
                 modelLoaded ->
                     addJarvisMessage(
                         "The local Jarvis AI model is loaded and ready."
                     )
 
-                modelReady -> loadLocalModel()
-                else -> downloadModel()
+                modelReady ->
+                    loadLocalModel()
+
+                else ->
+                    downloadModel()
             }
         }
     }
 
-    private fun addWeightedButton(row: LinearLayout, button: Button) {
+    private fun addWeightedButton(
+        row: LinearLayout,
+        button: Button
+    ) {
+
         row.addView(
             button,
             LinearLayout.LayoutParams(
@@ -358,6 +382,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         textColor: Int,
         backgroundColor: Int
     ): Button {
+
         return Button(this).apply {
             text = label
             setTextColor(textColor)
@@ -368,7 +393,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun updateBuilderButton() {
-        buildButton.text = if (builderMode) "BUILD ✓" else "BUILD"
+        buildButton.text =
+            if (builderMode) "BUILD ✓"
+            else "BUILD"
     }
 
     // ============================================================
@@ -377,7 +404,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
     private fun sendMessage() {
 
-        val message = inputText.text.toString().trim()
+        val message =
+            inputText.text.toString().trim()
+
         if (message.isEmpty()) return
 
         inputText.setText("")
@@ -386,25 +415,37 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         rememberLastUserMessage(message)
 
         if (!modelReady) {
+
             addJarvisMessage(
-                "My local AI model hasn't been downloaded yet. Press MODEL first."
+                "My local AI model hasn't been downloaded yet. " +
+                    "Press MODEL first."
             )
+
             return
         }
 
         if (!modelLoaded) {
+
             addJarvisMessage(
                 "I'm loading my local AI model. Please try again when " +
                     "the status says AI READY."
             )
+
             loadLocalModel()
             return
         }
 
-        val isNewBuild = workspace.isNewBuildRequest(message)
-        val isEdit = workspace.isProjectEditRequest(message)
+        val isNewBuild =
+            workspace.isNewBuildRequest(message)
 
-        if (builderMode || isNewBuild || isEdit) {
+        val isEdit =
+            workspace.isProjectEditRequest(message)
+
+        if (
+            builderMode ||
+            isNewBuild ||
+            isEdit
+        ) {
             handleBuilderRequest(message)
         } else {
             generateAIResponse(message)
@@ -415,22 +456,38 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     // BUILDER ROUTING
     // ============================================================
 
-    private fun handleBuilderRequest(message: String) {
+    private fun handleBuilderRequest(
+        message: String
+    ) {
 
-        val explicitType = workspace.detectProjectType(message)
-        val current = workspace.getCurrentProject()
-        val newBuild = workspace.isNewBuildRequest(message)
+        val explicitType =
+            workspace.detectProjectType(message)
+
+        val current =
+            workspace.getCurrentProject()
+
+        val newBuild =
+            workspace.isNewBuildRequest(message)
 
         if (newBuild) {
 
-            if (explicitType == JarvisProjectType.UNKNOWN) {
+            if (
+                explicitType ==
+                JarvisProjectType.UNKNOWN
+            ) {
+
                 addJarvisMessage(
                     "Would you like me to build that as a WEBSITE, " +
                         "2D GAME, or 3D GAME?"
                 )
-                setStatus("BUILDER: PROJECT TYPE NEEDED")
+
+                setStatus(
+                    "BUILDER: PROJECT TYPE NEEDED"
+                )
+
                 builderMode = true
                 updateBuilderButton()
+
                 return
             }
 
@@ -440,6 +497,13 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     explicitType
                 )
 
+            /*
+             * ProjectWorkspace immediately creates the
+             * working starter/foundation for games.
+             *
+             * This means the playable project exists BEFORE
+             * local AI generation begins.
+             */
             val project =
                 workspace.createProject(
                     name,
@@ -449,6 +513,11 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             builderMode = true
             updateBuilderButton()
 
+            /*
+             * The starter has already been saved here.
+             * If Android kills the AI process later, PREVIEW
+             * can still open the working project after restart.
+             */
             generateProject(
                 project,
                 message,
@@ -461,17 +530,23 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         if (current != null) {
 
             if (
-                explicitType != JarvisProjectType.UNKNOWN &&
+                explicitType !=
+                    JarvisProjectType.UNKNOWN &&
                 explicitType != current.type
             ) {
+
                 addJarvisMessage(
-                    "Your current project is a ${projectLabel(current.type)}. " +
+                    "Your current project is a " +
+                        "${projectLabel(current.type)}. " +
                         "You mentioned ${projectLabel(explicitType)}. " +
                         "Say \"create a new ${projectLabel(explicitType)}\" " +
                         "if you want a separate project."
                 )
 
-                setStatus("BUILDER: TYPE PROTECTED")
+                setStatus(
+                    "BUILDER: TYPE PROTECTED"
+                )
+
                 return
             }
 
@@ -487,13 +562,23 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             return
         }
 
-        if (explicitType == JarvisProjectType.UNKNOWN) {
+        if (
+            explicitType ==
+            JarvisProjectType.UNKNOWN
+        ) {
+
             addJarvisMessage(
-                "Tell me whether you want a WEBSITE, 2D GAME, or 3D GAME."
+                "Tell me whether you want a WEBSITE, " +
+                    "2D GAME, or 3D GAME."
             )
+
             builderMode = true
             updateBuilderButton()
-            setStatus("BUILDER: PROJECT TYPE NEEDED")
+
+            setStatus(
+                "BUILDER: PROJECT TYPE NEEDED"
+            )
+
             return
         }
 
@@ -523,30 +608,47 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     // FAST / SAFE BUILDER
     // ============================================================
 
-    private fun isGameProject(project: JarvisProject): Boolean {
-        return project.type == JarvisProjectType.GAME_2D ||
-            project.type == JarvisProjectType.GAME_3D
+    private fun isGameProject(
+        project: JarvisProject
+    ): Boolean {
+
+        return (
+            project.type ==
+                JarvisProjectType.GAME_2D ||
+            project.type ==
+                JarvisProjectType.GAME_3D
+        )
     }
 
     /*
-     * Smaller outputs are important on a phone.
+     * PHONE SAFE GENERATION LIMITS
      *
-     * 2D = 1024
-     * 3D = 1024
-     * Website = 1536
+     * 2D GAME  = 512
+     * 3D GAME  = 512
+     * WEBSITE  = 1536
      *
-     * ProjectWorkspace already provides the game foundation,
-     * so the tiny model does not need 2048 tokens to rebuild
-     * everything from scratch.
+     * Games already have a working foundation supplied by
+     * ProjectWorkspace. The local model only needs to generate
+     * a relatively small improvement instead of spending
+     * thousands of tokens trying to build everything.
      */
     private fun builderTokenLimit(
         project: JarvisProject
     ): Int {
+
         return when (project.type) {
-            JarvisProjectType.GAME_2D -> 1024
-            JarvisProjectType.GAME_3D -> 1024
-            JarvisProjectType.WEBSITE -> 1536
-            JarvisProjectType.UNKNOWN -> 1024
+
+            JarvisProjectType.GAME_2D ->
+                512
+
+            JarvisProjectType.GAME_3D ->
+                512
+
+            JarvisProjectType.WEBSITE ->
+                1536
+
+            JarvisProjectType.UNKNOWN ->
+                512
         }
     }
 
@@ -559,8 +661,13 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         val model = llamaModel
 
         if (model == null) {
+
             modelLoaded = false
-            setStatus("SYSTEM: MODEL NOT LOADED")
+
+            setStatus(
+                "SYSTEM: MODEL NOT LOADED"
+            )
+
             return
         }
 
@@ -568,17 +675,25 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
         setStatus(
             if (editing) {
-                "BUILDER: UPDATING ${projectLabel(project.type)}"
+                "BUILDER: UPDATING " +
+                    projectLabel(project.type)
             } else {
-                "BUILDER: CREATING ${projectLabel(project.type)}"
+                "BUILDER: CREATING " +
+                    projectLabel(project.type)
             }
         )
 
         addJarvisMessage(
             if (editing) {
-                "Updating ${project.name}. I'll preserve its project type."
+
+                "Updating ${project.name}. " +
+                    "I'll preserve its project type."
+
             } else {
-                "Creating ${project.name} as a ${projectLabel(project.type)}."
+
+                "Creating ${project.name} as a " +
+                    "${projectLabel(project.type)}. " +
+                    "The working foundation is already saved."
             }
         )
 
@@ -586,23 +701,28 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
             try {
 
-                val gameProject = isGameProject(project)
+                val gameProject =
+                    isGameProject(project)
 
                 val prompt =
                     when {
+
                         editing ->
+
                             workspace.createEditPrompt(
                                 project,
                                 userRequest
                             )
 
                         gameProject ->
+
                             workspace.createInitialGamePrompt(
                                 project,
                                 userRequest
                             )
 
                         else ->
+
                             """
 PROJECT NAME:
 ${project.name}
@@ -614,21 +734,26 @@ USER REQUEST:
 $userRequest
 
 Create the complete project now.
+
 Return one complete HTML document.
-Keep the code compact and functional.
+
+Keep the code compact, functional and mobile friendly.
 """.trimIndent()
                     }
 
                 setStatus(
                     if (gameProject) {
-                        "BUILDER: FAST GAME GENERATION"
+                        "BUILDER: LIGHT GAME GENERATION"
                     } else {
                         "BUILDER: GENERATING"
                     }
                 )
 
                 val firstResult =
-                    withContext(Dispatchers.Default) {
+                    withContext(
+                        Dispatchers.Default
+                    ) {
+
                         Llama.complete(
                             model,
                             prompt = prompt,
@@ -636,7 +761,10 @@ Keep the code compact and functional.
                                 workspace.builderSystemPrompt(
                                     project.type
                                 ),
-                            maxTokens = builderTokenLimit(project)
+                            maxTokens =
+                                builderTokenLimit(
+                                    project
+                                )
                         )
                     }
 
@@ -645,33 +773,49 @@ Keep the code compact and functional.
                         firstResult.text.trim()
                     )
 
+                // =================================================
+                // GAME FAST RECOVERY
+                // =================================================
+
                 /*
-                 * GAME FAST FAIL:
-                 * Do not make another expensive AI request when
-                 * the first game response did not even produce HTML.
+                 * Do NOT ask the AI for another large response
+                 * when a game response is incomplete.
+                 *
+                 * The working foundation already exists.
                  */
                 if (html.isNullOrBlank()) {
 
-                    if (gameProject && useGameFallback(project)) {
+                    if (
+                        gameProject &&
+                        useGameFallback(project)
+                    ) {
+
                         addJarvisMessage(
-                            "The AI response was incomplete, so I switched " +
-                                "straight to the working ${projectLabel(project.type)} " +
-                                "foundation instead of wasting time on another " +
-                                "large generation. Press PREVIEW to run it."
+                            "The AI stopped before finishing the game code, " +
+                                "so I kept the working " +
+                                "${projectLabel(project.type)} foundation. " +
+                                "Press PREVIEW to play it."
                         )
 
-                        setStatus("BUILDER: GAME READY")
+                        setStatus(
+                            "BUILDER: GAME READY"
+                        )
+
                         builderMode = true
                         updateBuilderButton()
+
                         return@launch
                     }
 
                     addJarvisMessage(
-                        "The builder didn't return a complete HTML project, " +
-                            "so I kept the previous project safe."
+                        "The builder didn't return a complete project. " +
+                            "Your previous working project was kept safe."
                     )
 
-                    setStatus("BUILDER: OUTPUT INCOMPLETE")
+                    setStatus(
+                        "BUILDER: OUTPUT INCOMPLETE"
+                    )
+
                     return@launch
                 }
 
@@ -683,48 +827,70 @@ Keep the code compact and functional.
 
                 var fatal =
                     problems.any {
-                        workspace.isFatalValidationProblem(it)
+                        workspace
+                            .isFatalValidationProblem(it)
                     }
 
-                /*
-                 * IMPORTANT PERFORMANCE FIX:
-                 *
-                 * Games no longer perform a second 2048-token repair.
-                 * If the tiny model generated a fatally broken game,
-                 * immediately use the known-good game foundation.
-                 *
-                 * This greatly reduces memory/CPU pressure and the
-                 * chance Android kills the app during generation.
-                 */
-                if (fatal && gameProject) {
+                // =================================================
+                // GAME VALIDATION RECOVERY
+                // =================================================
 
-                    if (useGameFallback(project)) {
+                /*
+                 * Games deliberately skip the second AI repair.
+                 *
+                 * A second generation was one of the heaviest
+                 * operations in the old builder.
+                 */
+                if (
+                    fatal &&
+                    gameProject
+                ) {
+
+                    if (
+                        useGameFallback(project)
+                    ) {
 
                         addJarvisMessage(
-                            "The generated game was incomplete. " +
-                                "I automatically switched to the working " +
-                                "${projectLabel(project.type)} foundation. " +
+                            "The AI-generated version didn't pass " +
+                                "game validation, so I restored the " +
+                                "working ${projectLabel(project.type)} " +
+                                "foundation automatically. " +
                                 "Press PREVIEW to test it."
                         )
 
-                        setStatus("BUILDER: SAFE GAME READY")
+                        setStatus(
+                            "BUILDER: SAFE GAME READY"
+                        )
+
                         builderMode = true
                         updateBuilderButton()
+
                         return@launch
                     }
                 }
 
-                /*
-                 * Websites can still receive one smaller repair pass.
-                 * 1024 tokens instead of the previous 2048.
-                 */
-                if (fatal && !gameProject) {
+                // =================================================
+                // WEBSITE REPAIR
+                // =================================================
 
-                    setStatus("BUILDER: AUTO-REPAIRING")
+                /*
+                 * Websites still get one repair because they
+                 * generally place less pressure on the phone.
+                 *
+                 * Repair is capped at 1024 tokens.
+                 */
+                if (
+                    fatal &&
+                    !gameProject
+                ) {
+
+                    setStatus(
+                        "BUILDER: AUTO-REPAIRING"
+                    )
 
                     addJarvisMessage(
                         "I found a website build problem. " +
-                            "I'm trying one compact automatic repair."
+                            "I'm trying one compact repair."
                     )
 
                     val repairPrompt =
@@ -735,24 +901,32 @@ Keep the code compact and functional.
                         )
 
                     val repairResult =
-                        withContext(Dispatchers.Default) {
+                        withContext(
+                            Dispatchers.Default
+                        ) {
+
                             Llama.complete(
                                 model,
-                                prompt = repairPrompt,
+                                prompt =
+                                    repairPrompt,
                                 systemPrompt =
-                                    workspace.builderSystemPrompt(
-                                        project.type
-                                    ),
+                                    workspace
+                                        .builderSystemPrompt(
+                                            project.type
+                                        ),
                                 maxTokens = 1024
                             )
                         }
 
                     val repairedHtml =
-                        workspace.extractGeneratedHtml(
-                            repairResult.text.trim()
-                        )
+                        workspace
+                            .extractGeneratedHtml(
+                                repairResult.text.trim()
+                            )
 
-                    if (!repairedHtml.isNullOrBlank()) {
+                    if (
+                        !repairedHtml.isNullOrBlank()
+                    ) {
 
                         val repairedProblems =
                             workspace.validateProject(
@@ -762,29 +936,51 @@ Keep the code compact and functional.
 
                         val repairedFatal =
                             repairedProblems.any {
-                                workspace.isFatalValidationProblem(it)
+
+                                workspace
+                                    .isFatalValidationProblem(
+                                        it
+                                    )
                             }
 
                         if (!repairedFatal) {
-                            html = repairedHtml
-                            problems = repairedProblems
-                            fatal = false
+
+                            html =
+                                repairedHtml
+
+                            problems =
+                                repairedProblems
+
+                            fatal =
+                                false
                         }
                     }
                 }
 
+                // =================================================
+                // FINAL VALIDATION
+                // =================================================
+
                 if (fatal) {
 
-                    if (gameProject && useGameFallback(project)) {
+                    if (
+                        gameProject &&
+                        useGameFallback(project)
+                    ) {
 
                         addJarvisMessage(
-                            "I protected the project by restoring its working " +
-                                "${projectLabel(project.type)} foundation."
+                            "I protected the game by restoring " +
+                                "its working ${projectLabel(project.type)} " +
+                                "foundation."
                         )
 
-                        setStatus("BUILDER: FALLBACK READY")
+                        setStatus(
+                            "BUILDER: FALLBACK READY"
+                        )
+
                         builderMode = true
                         updateBuilderButton()
+
                         return@launch
                     }
 
@@ -794,9 +990,16 @@ Keep the code compact and functional.
                             ". I kept your previous working version safe."
                     )
 
-                    setStatus("BUILDER: VALIDATION FAILED")
+                    setStatus(
+                        "BUILDER: VALIDATION FAILED"
+                    )
+
                     return@launch
                 }
+
+                // =================================================
+                // SAVE SUCCESSFUL AI VERSION
+                // =================================================
 
                 workspace.saveMainFile(
                     project,
@@ -807,10 +1010,13 @@ Keep the code compact and functional.
 
                     addJarvisMessage(
                         "${project.name} is built and saved. " +
-                            "Validation passed. Press PREVIEW to run it."
+                            "Validation passed. " +
+                            "Press PREVIEW to run it."
                     )
 
-                    setStatus("BUILDER: PROJECT READY")
+                    setStatus(
+                        "BUILDER: PROJECT READY"
+                    )
 
                 } else {
 
@@ -819,7 +1025,9 @@ Keep the code compact and functional.
                             problems.joinToString("; ")
                     )
 
-                    setStatus("BUILDER: READY WITH WARNINGS")
+                    setStatus(
+                        "BUILDER: READY WITH WARNINGS"
+                    )
                 }
 
                 builderMode = true
@@ -827,10 +1035,13 @@ Keep the code compact and functional.
 
             } catch (e: Exception) {
 
+                // =================================================
+                // GAME EXCEPTION RECOVERY
+                // =================================================
+
                 /*
-                 * CRASH/EXCEPTION PROTECTION:
-                 * A game generation failure should not destroy the
-                 * project. Restore the foundation whenever possible.
+                 * If local inference throws an exception,
+                 * automatically recover a playable game.
                  */
                 if (
                     isGameProject(project) &&
@@ -838,23 +1049,33 @@ Keep the code compact and functional.
                 ) {
 
                     addJarvisMessage(
-                        "Game generation stopped before completion, but " +
-                            "I recovered the project using the working " +
-                            "${projectLabel(project.type)} foundation. " +
+                        "Game generation stopped before completion, " +
+                            "but the working " +
+                            "${projectLabel(project.type)} " +
+                            "foundation has been recovered. " +
                             "Press PREVIEW to continue."
                     )
 
-                    setStatus("BUILDER: RECOVERED")
+                    setStatus(
+                        "BUILDER: RECOVERED"
+                    )
+
                     builderMode = true
                     updateBuilderButton()
 
                 } else {
 
                     addJarvisMessage(
-                        "Builder error: ${e.message ?: "Unknown builder error"}"
+                        "Builder error: " +
+                            (
+                                e.message ?:
+                                "Unknown builder error"
+                            )
                     )
 
-                    setStatus("BUILDER: ERROR")
+                    setStatus(
+                        "BUILDER: ERROR"
+                    )
                 }
 
             } finally {
@@ -863,6 +1084,10 @@ Keep the code compact and functional.
             }
         }
     }
+
+    // ============================================================
+    // GAME FALLBACK
+    // ============================================================
 
     private fun useGameFallback(
         project: JarvisProject
@@ -875,19 +1100,26 @@ Keep the code compact and functional.
         return try {
 
             val fallback =
-                workspace.workingFallback(project)
+                workspace.workingFallback(
+                    project
+                )
 
             if (fallback.isNullOrBlank()) {
+
                 false
+
             } else {
+
                 workspace.saveMainFile(
                     project,
                     fallback
                 )
+
                 true
             }
 
         } catch (_: Exception) {
+
             false
         }
     }
@@ -898,47 +1130,88 @@ Keep the code compact and functional.
 
     private fun previewCurrentProject() {
 
-        val project = workspace.getCurrentProject()
+        val project =
+            workspace.getCurrentProject()
 
         if (project == null) {
+
             addJarvisMessage(
                 "There isn't a current project to preview yet."
             )
+
             return
         }
 
-        val html = workspace.readMainFile(project)
+        val html =
+            workspace.readMainFile(
+                project
+            )
 
         if (html.isNullOrBlank()) {
+
             addJarvisMessage(
-                "The current project doesn't have a finished index.html yet."
+                "The current project doesn't have a finished " +
+                    "index.html yet."
             )
+
             return
         }
 
-        val dialog = Dialog(this)
+        val dialog =
+            Dialog(this)
 
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.BLACK)
-        }
+        val root =
+            LinearLayout(this).apply {
+                orientation =
+                    LinearLayout.VERTICAL
+                setBackgroundColor(
+                    Color.BLACK
+                )
+            }
 
-        val topBar = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(6), dp(8), dp(6))
-        }
+        val topBar =
+            LinearLayout(this).apply {
+                orientation =
+                    LinearLayout.HORIZONTAL
 
-        val title = TextView(this).apply {
-            text = "${project.name} • ${projectLabel(project.type)}"
-            setTextColor(Color.WHITE)
-            textSize = 14f
-            setPadding(dp(8), 0, dp(8), 0)
-        }
+                gravity =
+                    Gravity.CENTER_VERTICAL
 
-        val close = Button(this).apply {
-            text = "CLOSE"
-        }
+                setPadding(
+                    dp(8),
+                    dp(6),
+                    dp(8),
+                    dp(6)
+                )
+            }
+
+        val title =
+            TextView(this).apply {
+
+                text =
+                    "${project.name} • " +
+                        projectLabel(
+                            project.type
+                        )
+
+                setTextColor(
+                    Color.WHITE
+                )
+
+                textSize = 14f
+
+                setPadding(
+                    dp(8),
+                    0,
+                    dp(8),
+                    0
+                )
+            }
+
+        val close =
+            Button(this).apply {
+                text = "CLOSE"
+            }
 
         topBar.addView(
             title,
@@ -957,18 +1230,29 @@ Keep the code compact and functional.
             )
         )
 
-        val webView = WebView(this)
+        val webView =
+            WebView(this)
 
         webView.settings.apply {
+
             javaScriptEnabled = true
             domStorageEnabled = true
-            mediaPlaybackRequiresUserGesture = false
-            allowFileAccess = false
-            allowContentAccess = false
+
+            mediaPlaybackRequiresUserGesture =
+                false
+
+            allowFileAccess =
+                false
+
+            allowContentAccess =
+                false
         }
 
-        webView.webViewClient = WebViewClient()
-        webView.webChromeClient = WebChromeClient()
+        webView.webViewClient =
+            WebViewClient()
+
+        webView.webChromeClient =
+            WebChromeClient()
 
         webView.loadDataWithBaseURL(
             "https://jarvis.local/",
@@ -978,7 +1262,9 @@ Keep the code compact and functional.
             null
         )
 
-        root.addView(topBar)
+        root.addView(
+            topBar
+        )
 
         root.addView(
             webView,
@@ -989,9 +1275,12 @@ Keep the code compact and functional.
             )
         )
 
-        dialog.setContentView(root)
+        dialog.setContentView(
+            root
+        )
 
         close.setOnClickListener {
+
             try {
                 webView.stopLoading()
                 webView.destroy()
@@ -1002,6 +1291,7 @@ Keep the code compact and functional.
         }
 
         dialog.setOnDismissListener {
+
             try {
                 webView.stopLoading()
                 webView.destroy()
@@ -1021,18 +1311,29 @@ Keep the code compact and functional.
     // NORMAL LOCAL AI
     // ============================================================
 
-    private fun generateAIResponse(message: String) {
+    private fun generateAIResponse(
+        message: String
+    ) {
 
-        val model = llamaModel
+        val model =
+            llamaModel
 
         if (model == null) {
+
             modelLoaded = false
-            setStatus("SYSTEM: MODEL NOT LOADED")
+
+            setStatus(
+                "SYSTEM: MODEL NOT LOADED"
+            )
+
             return
         }
 
         setBusy(true)
-        setStatus("JARVIS: THINKING LOCALLY")
+
+        setStatus(
+            "JARVIS: THINKING LOCALLY"
+        )
 
         lifecycleScope.launch {
 
@@ -1045,9 +1346,14 @@ Keep the code compact and functional.
                     ).orEmpty()
 
                 val memoryContext =
-                    if (remembered.isBlank()) {
+                    if (
+                        remembered.isBlank()
+                    ) {
+
                         ""
+
                     } else {
+
                         """
 Previous user message:
 $remembered
@@ -1063,7 +1369,10 @@ $message
 """.trimIndent()
 
                 val result =
-                    withContext(Dispatchers.Default) {
+                    withContext(
+                        Dispatchers.Default
+                    ) {
+
                         Llama.complete(
                             model,
                             prompt = prompt,
@@ -1078,15 +1387,24 @@ $message
                         )
                     }
 
-                val answer = result.text.trim()
+                val answer =
+                    result.text.trim()
 
                 if (answer.isBlank()) {
+
                     addJarvisMessage(
                         "I couldn't generate a response."
                     )
+
                 } else {
-                    addJarvisMessage(answer)
-                    speak(answer)
+
+                    addJarvisMessage(
+                        answer
+                    )
+
+                    speak(
+                        answer
+                    )
                 }
 
                 prefs.edit()
@@ -1096,15 +1414,23 @@ $message
                     )
                     .apply()
 
-                setStatus("SYSTEM: AI READY")
+                setStatus(
+                    "SYSTEM: AI READY"
+                )
 
             } catch (e: Exception) {
 
                 addJarvisMessage(
-                    "Local AI error: ${e.message ?: "Unknown model error"}"
+                    "Local AI error: " +
+                        (
+                            e.message ?:
+                            "Unknown model error"
+                        )
                 )
 
-                setStatus("SYSTEM: AI ERROR")
+                setStatus(
+                    "SYSTEM: AI ERROR"
+                )
 
             } finally {
 
@@ -1117,19 +1443,37 @@ $message
     // CHAT + MEMORY
     // ============================================================
 
-    private fun addUserMessage(message: String) {
-        appendChat("\nYOU:\n$message\n")
+    private fun addUserMessage(
+        message: String
+    ) {
+
+        appendChat(
+            "\nYOU:\n$message\n"
+        )
     }
 
-    private fun addJarvisMessage(message: String) {
-        appendChat("\nJARVIS:\n$message\n")
+    private fun addJarvisMessage(
+        message: String
+    ) {
+
+        appendChat(
+            "\nJARVIS:\n$message\n"
+        )
     }
 
-    private fun appendChat(message: String) {
-        chatText.append(message)
+    private fun appendChat(
+        message: String
+    ) {
+
+        chatText.append(
+            message
+        )
     }
 
-    private fun rememberLastUserMessage(message: String) {
+    private fun rememberLastUserMessage(
+        message: String
+    ) {
+
         prefs.edit()
             .putString(
                 "last_user_message",
@@ -1139,14 +1483,20 @@ $message
     }
 
     private fun restoreMemory() {
+
         val previous =
             prefs.getString(
                 "last_user_message",
                 null
             )
 
-        if (!previous.isNullOrBlank()) {
-            addJarvisMessage("Local memory restored.")
+        if (
+            !previous.isNullOrBlank()
+        ) {
+
+            addJarvisMessage(
+                "Local memory restored."
+            )
         }
     }
 
@@ -1160,10 +1510,14 @@ $message
             ContextCompat.checkSelfPermission(
                 this,
                 Manifest.permission.RECORD_AUDIO
-            ) == PackageManager.PERMISSION_GRANTED
+            ) ==
+            PackageManager.PERMISSION_GRANTED
         ) {
+
             startVoiceInput()
+
         } else {
+
             microphonePermissionLauncher.launch(
                 Manifest.permission.RECORD_AUDIO
             )
@@ -1195,12 +1549,19 @@ $message
                     )
                 }
 
-            setStatus("JARVIS: LISTENING")
-            speechLauncher.launch(intent)
+            setStatus(
+                "JARVIS: LISTENING"
+            )
+
+            speechLauncher.launch(
+                intent
+            )
 
         } catch (_: Exception) {
 
-            setStatus("VOICE INPUT UNAVAILABLE")
+            setStatus(
+                "VOICE INPUT UNAVAILABLE"
+            )
 
             addJarvisMessage(
                 "Voice recognition isn't available on this device."
@@ -1212,15 +1573,28 @@ $message
     // TEXT TO SPEECH
     // ============================================================
 
-    override fun onInit(status: Int) {
+    override fun onInit(
+        status: Int
+    ) {
 
-        if (status == TextToSpeech.SUCCESS) {
-            tts?.language = Locale.getDefault()
-            tts?.setSpeechRate(1.0f)
+        if (
+            status ==
+            TextToSpeech.SUCCESS
+        ) {
+
+            tts?.language =
+                Locale.getDefault()
+
+            tts?.setSpeechRate(
+                1.0f
+            )
         }
     }
 
-    private fun speak(text: String) {
+    private fun speak(
+        text: String
+    ) {
+
         tts?.speak(
             text,
             TextToSpeech.QUEUE_FLUSH,
@@ -1237,36 +1611,60 @@ $message
 
         modelReady =
             modelFile.exists() &&
-                modelFile.length() > 100_000_000L
+                modelFile.length() >
+                100_000_000L
 
         if (modelReady) {
-            setStatus("SYSTEM: MODEL INSTALLED")
-            modelButton.text = "LOAD AI"
+
+            setStatus(
+                "SYSTEM: MODEL INSTALLED"
+            )
+
+            modelButton.text =
+                "LOAD AI"
+
         } else {
-            setStatus("SYSTEM: READY — MODEL NOT INSTALLED")
-            modelButton.text = "MODEL"
+
+            setStatus(
+                "SYSTEM: READY — MODEL NOT INSTALLED"
+            )
+
+            modelButton.text =
+                "MODEL"
         }
     }
 
     private fun loadLocalModel() {
 
         if (!modelReady) {
+
             addJarvisMessage(
                 "The model needs to be downloaded first."
             )
+
             return
         }
 
-        if (modelLoaded) return
+        if (modelLoaded) {
+            return
+        }
 
-        modelButton.isEnabled = false
-        sendButton.isEnabled = false
-        buildButton.isEnabled = false
+        modelButton.isEnabled =
+            false
 
-        setStatus("SYSTEM: LOADING LOCAL AI")
+        sendButton.isEnabled =
+            false
+
+        buildButton.isEnabled =
+            false
+
+        setStatus(
+            "SYSTEM: LOADING LOCAL AI"
+        )
 
         addJarvisMessage(
-            "Loading my local AI brain. This can take a moment."
+            "Loading my local AI brain. " +
+                "This can take a moment."
         )
 
         lifecycleScope.launch {
@@ -1274,32 +1672,48 @@ $message
             try {
 
                 val loadedModel =
-                    withContext(Dispatchers.Default) {
+                    withContext(
+                        Dispatchers.Default
+                    ) {
+
                         Llama.loadModel(
-                            modelPath = modelFile.absolutePath,
+                            modelPath =
+                                modelFile.absolutePath,
                             config =
                                 LlamaConfig(
                                     /*
-                                     * Keep the working #34 context.
-                                     * Reducing generation token counts
-                                     * is safer than shrinking context.
+                                     * Keep context at 4096.
+                                     *
+                                     * Generation output is what we
+                                     * reduced for game creation.
                                      */
-                                    contextSize = 4096,
+                                    contextSize =
+                                        4096,
 
                                     threads =
                                         Runtime
                                             .getRuntime()
                                             .availableProcessors()
-                                            .coerceIn(2, 6)
+                                            .coerceIn(
+                                                2,
+                                                6
+                                            )
                                 )
                         )
                     }
 
-                llamaModel = loadedModel
-                modelLoaded = true
-                modelButton.text = "AI ✓"
+                llamaModel =
+                    loadedModel
 
-                setStatus("SYSTEM: AI READY")
+                modelLoaded =
+                    true
+
+                modelButton.text =
+                    "AI ✓"
+
+                setStatus(
+                    "SYSTEM: AI READY"
+                )
 
                 addJarvisMessage(
                     "Local AI loaded successfully. " +
@@ -1308,22 +1722,37 @@ $message
 
             } catch (e: Exception) {
 
-                llamaModel = null
-                modelLoaded = false
-                modelButton.text = "LOAD AI"
+                llamaModel =
+                    null
 
-                setStatus("SYSTEM: MODEL LOAD ERROR")
+                modelLoaded =
+                    false
+
+                modelButton.text =
+                    "LOAD AI"
+
+                setStatus(
+                    "SYSTEM: MODEL LOAD ERROR"
+                )
 
                 addJarvisMessage(
                     "I couldn't load the local model: " +
-                        (e.message ?: "Unknown error")
+                        (
+                            e.message ?:
+                            "Unknown error"
+                        )
                 )
 
             } finally {
 
-                modelButton.isEnabled = true
-                sendButton.isEnabled = true
-                buildButton.isEnabled = true
+                modelButton.isEnabled =
+                    true
+
+                sendButton.isEnabled =
+                    true
+
+                buildButton.isEnabled =
+                    true
             }
         }
     }
@@ -1334,52 +1763,80 @@ $message
 
     private fun downloadModel() {
 
-        modelButton.isEnabled = false
-        progressBar.visibility = View.VISIBLE
-        progressBar.progress = 0
+        modelButton.isEnabled =
+            false
 
-        setStatus("MODEL: CONNECTING")
+        progressBar.visibility =
+            View.VISIBLE
+
+        progressBar.progress =
+            0
+
+        setStatus(
+            "MODEL: CONNECTING"
+        )
 
         addJarvisMessage(
             "Downloading my local AI model. " +
-                "It's roughly 500 MB and only needs to be downloaded once."
+                "It's roughly 500 MB and only needs " +
+                "to be downloaded once."
         )
 
         downloadExecutor.execute {
 
             try {
 
-                modelFile.parentFile?.mkdirs()
+                modelFile
+                    .parentFile
+                    ?.mkdirs()
 
                 var downloaded =
-                    if (partialModelFile.exists()) {
+                    if (
+                        partialModelFile.exists()
+                    ) {
+
                         partialModelFile.length()
+
                     } else {
+
                         0L
                     }
 
                 var connection =
-                    createModelConnection(downloaded)
+                    createModelConnection(
+                        downloaded
+                    )
 
                 var responseCode =
                     connection.responseCode
 
                 if (
                     downloaded > 0L &&
-                    responseCode != HttpURLConnection.HTTP_PARTIAL
+                    responseCode !=
+                    HttpURLConnection.HTTP_PARTIAL
                 ) {
 
                     connection.disconnect()
+
                     partialModelFile.delete()
 
-                    downloaded = 0L
-                    connection = createModelConnection(0L)
-                    responseCode = connection.responseCode
+                    downloaded =
+                        0L
+
+                    connection =
+                        createModelConnection(
+                            0L
+                        )
+
+                    responseCode =
+                        connection.responseCode
                 }
 
                 if (
-                    responseCode != HttpURLConnection.HTTP_OK &&
-                    responseCode != HttpURLConnection.HTTP_PARTIAL
+                    responseCode !=
+                    HttpURLConnection.HTTP_OK &&
+                    responseCode !=
+                    HttpURLConnection.HTTP_PARTIAL
                 ) {
 
                     connection.disconnect()
@@ -1390,98 +1847,149 @@ $message
                 }
 
                 val contentLength =
-                    connection.contentLengthLong
+                    connection
+                        .contentLengthLong
 
                 val totalBytes =
                     if (
-                        responseCode == HttpURLConnection.HTTP_PARTIAL &&
+                        responseCode ==
+                            HttpURLConnection.HTTP_PARTIAL &&
                         contentLength > 0L
                     ) {
-                        downloaded + contentLength
+
+                        downloaded +
+                            contentLength
+
                     } else {
+
                         contentLength
                     }
 
-                connection.inputStream.use { input ->
+                connection
+                    .inputStream
+                    .use { input ->
 
-                    RandomAccessFile(
-                        partialModelFile,
-                        "rw"
-                    ).use { output ->
+                        RandomAccessFile(
+                            partialModelFile,
+                            "rw"
+                        ).use { output ->
 
-                        if (
-                            responseCode == HttpURLConnection.HTTP_PARTIAL &&
-                            downloaded > 0L
-                        ) {
-                            output.seek(downloaded)
-                        } else {
-                            output.setLength(0L)
-                        }
+                            if (
+                                responseCode ==
+                                    HttpURLConnection.HTTP_PARTIAL &&
+                                downloaded > 0L
+                            ) {
 
-                        val buffer =
-                            ByteArray(128 * 1024)
+                                output.seek(
+                                    downloaded
+                                )
 
-                        var current = downloaded
-                        var lastUiUpdate = 0L
+                            } else {
 
-                        while (true) {
+                                output.setLength(
+                                    0L
+                                )
+                            }
 
-                            val bytesRead =
-                                input.read(buffer)
+                            val buffer =
+                                ByteArray(
+                                    128 * 1024
+                                )
 
-                            if (bytesRead < 0) break
+                            var current =
+                                downloaded
 
-                            output.write(
-                                buffer,
-                                0,
-                                bytesRead
-                            )
+                            var lastUiUpdate =
+                                0L
 
-                            current += bytesRead
+                            while (true) {
 
-                            val now =
-                                System.currentTimeMillis()
-
-                            if (now - lastUiUpdate >= 250L) {
-
-                                lastUiUpdate = now
-
-                                val percent =
-                                    if (totalBytes > 0L) {
-                                        (
-                                            current *
-                                                100L /
-                                                totalBytes
-                                            )
-                                            .toInt()
-                                            .coerceIn(0, 100)
-                                    } else {
-                                        0
-                                    }
-
-                                runOnUiThread {
-                                    progressBar.progress = percent
-                                    setStatus(
-                                        "MODEL: DOWNLOADING $percent%"
+                                val bytesRead =
+                                    input.read(
+                                        buffer
                                     )
+
+                                if (
+                                    bytesRead < 0
+                                ) {
+                                    break
+                                }
+
+                                output.write(
+                                    buffer,
+                                    0,
+                                    bytesRead
+                                )
+
+                                current +=
+                                    bytesRead
+
+                                val now =
+                                    System
+                                        .currentTimeMillis()
+
+                                if (
+                                    now -
+                                        lastUiUpdate >=
+                                        250L
+                                ) {
+
+                                    lastUiUpdate =
+                                        now
+
+                                    val percent =
+                                        if (
+                                            totalBytes >
+                                            0L
+                                        ) {
+
+                                            (
+                                                current *
+                                                    100L /
+                                                    totalBytes
+                                                )
+                                                .toInt()
+                                                .coerceIn(
+                                                    0,
+                                                    100
+                                                )
+
+                                        } else {
+
+                                            0
+                                        }
+
+                                    runOnUiThread {
+
+                                        progressBar.progress =
+                                            percent
+
+                                        setStatus(
+                                            "MODEL: DOWNLOADING $percent%"
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
                 connection.disconnect()
 
                 if (
                     !partialModelFile.exists() ||
-                    partialModelFile.length() <= 100_000_000L
+                    partialModelFile.length() <=
+                    100_000_000L
                 ) {
+
                     throw IllegalStateException(
                         "Downloaded model is incomplete"
                     )
                 }
 
-                if (modelFile.exists()) {
+                if (
+                    modelFile.exists()
+                ) {
+
                     modelFile.delete()
                 }
 
@@ -1491,18 +1999,25 @@ $message
                     )
 
                 if (!renamed) {
+
                     partialModelFile.copyTo(
                         modelFile,
                         overwrite = true
                     )
+
                     partialModelFile.delete()
                 }
 
                 runOnUiThread {
 
-                    modelButton.isEnabled = true
-                    progressBar.progress = 100
-                    progressBar.visibility = View.GONE
+                    modelButton.isEnabled =
+                        true
+
+                    progressBar.progress =
+                        100
+
+                    progressBar.visibility =
+                        View.GONE
 
                     checkModel()
 
@@ -1517,14 +2032,22 @@ $message
 
                 runOnUiThread {
 
-                    modelButton.isEnabled = true
-                    progressBar.visibility = View.GONE
+                    modelButton.isEnabled =
+                        true
 
-                    setStatus("MODEL: DOWNLOAD PAUSED")
+                    progressBar.visibility =
+                        View.GONE
+
+                    setStatus(
+                        "MODEL: DOWNLOAD PAUSED"
+                    )
 
                     addJarvisMessage(
                         "The model download stopped: " +
-                            (e.message ?: "Network error") +
+                            (
+                                e.message ?:
+                                "Network error"
+                            ) +
                             ". The partial download has been kept. " +
                             "Press MODEL to resume."
                     )
@@ -1538,14 +2061,21 @@ $message
     ): HttpURLConnection {
 
         return (
-            URL(MODEL_URL)
+            URL(
+                MODEL_URL
+            )
                 .openConnection()
                 as HttpURLConnection
             ).apply {
 
-                connectTimeout = 20_000
-                readTimeout = 60_000
-                instanceFollowRedirects = true
+                connectTimeout =
+                    20_000
+
+                readTimeout =
+                    60_000
+
+                instanceFollowRedirects =
+                    true
 
                 setRequestProperty(
                     "Accept-Encoding",
@@ -1557,7 +2087,10 @@ $message
                     "Jarvis-Android"
                 )
 
-                if (downloaded > 0L) {
+                if (
+                    downloaded > 0L
+                ) {
+
                     setRequestProperty(
                         "Range",
                         "bytes=$downloaded-"
@@ -1577,29 +2110,58 @@ $message
     ): String {
 
         return when (type) {
-            JarvisProjectType.WEBSITE -> "WEBSITE"
-            JarvisProjectType.GAME_2D -> "2D GAME"
-            JarvisProjectType.GAME_3D -> "3D GAME"
-            JarvisProjectType.UNKNOWN -> "PROJECT"
+
+            JarvisProjectType.WEBSITE ->
+                "WEBSITE"
+
+            JarvisProjectType.GAME_2D ->
+                "2D GAME"
+
+            JarvisProjectType.GAME_3D ->
+                "3D GAME"
+
+            JarvisProjectType.UNKNOWN ->
+                "PROJECT"
         }
     }
 
-    private fun setBusy(busy: Boolean) {
-        sendButton.isEnabled = !busy
-        talkButton.isEnabled = !busy
-        buildButton.isEnabled = !busy
-        modelButton.isEnabled = !busy
-        previewButton.isEnabled = !busy
+    private fun setBusy(
+        busy: Boolean
+    ) {
+
+        sendButton.isEnabled =
+            !busy
+
+        talkButton.isEnabled =
+            !busy
+
+        buildButton.isEnabled =
+            !busy
+
+        modelButton.isEnabled =
+            !busy
+
+        previewButton.isEnabled =
+            !busy
     }
 
-    private fun setStatus(text: String) {
-        statusText.text = text
+    private fun setStatus(
+        text: String
+    ) {
+
+        statusText.text =
+            text
     }
 
-    private fun dp(value: Int): Int {
+    private fun dp(
+        value: Int
+    ): Int {
+
         return (
             value *
-                resources.displayMetrics.density
+                resources
+                    .displayMetrics
+                    .density
             ).toInt()
     }
 
@@ -1614,22 +2176,34 @@ $message
 
         downloadExecutor.shutdownNow()
 
-        val model = llamaModel
+        val model =
+            llamaModel
 
         if (model != null) {
 
             Thread {
+
                 try {
-                    kotlinx.coroutines.runBlocking {
-                        Llama.releaseModel(model)
-                    }
+
+                    kotlinx.coroutines
+                        .runBlocking {
+
+                            Llama.releaseModel(
+                                model
+                            )
+                        }
+
                 } catch (_: Exception) {
                 }
+
             }.start()
         }
 
-        llamaModel = null
-        modelLoaded = false
+        llamaModel =
+            null
+
+        modelLoaded =
+            false
 
         super.onDestroy()
     }
