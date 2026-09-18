@@ -148,15 +148,11 @@ class ProjectWorkspace(
             return JarvisProjectType.GAME_2D
         }
 
+        /*
+         * If the user only says "make a game",
+         * Jarvis must ask 2D or 3D instead of guessing.
+         */
         if (mentionsGame) {
-
-            /*
-             * A generic "make a game" request is intentionally
-             * UNKNOWN.
-             *
-             * Jarvis must ask whether the user wants a 2D or
-             * 3D game instead of guessing.
-             */
             return JarvisProjectType.UNKNOWN
         }
 
@@ -293,10 +289,8 @@ class ProjectWorkspace(
             }
 
         /*
-         * Each project gets its own isolated directory.
-         *
-         * This prevents a website from overwriting a game
-         * or one game from overwriting another.
+         * Websites, 2D games and 3D games live in
+         * separate directories.
          */
         val directory =
             File(
@@ -380,14 +374,11 @@ class ProjectWorkspace(
                 return null
             }
 
-        val project =
-            findProject(
-                id = id,
-                type = type,
-                name = name
-            ) ?: return null
-
-        return project
+        return findProject(
+            id = id,
+            type = type,
+            name = name
+        )
     }
 
     private fun findProject(
@@ -445,9 +436,6 @@ class ProjectWorkspace(
             )
         }
 
-        /*
-         * Back up the current version before replacing it.
-         */
         backupCurrentVersion(project)
 
         val index =
@@ -568,11 +556,10 @@ class ProjectWorkspace(
                 .listFiles()
                 ?.filter {
                     it.isFile &&
-                        it.extension
-                            .equals(
-                                "html",
-                                ignoreCase = true
-                            )
+                        it.extension.equals(
+                            "html",
+                            ignoreCase = true
+                        )
                 }
                 ?.sortedByDescending {
                     it.lastModified()
@@ -580,11 +567,12 @@ class ProjectWorkspace(
                 ?: return
 
         /*
-         * Keep the newest 10 automatic versions.
+         * Keep the newest 10 versions.
          */
         backups
             .drop(10)
             .forEach {
+
                 try {
                     it.delete()
                 } catch (_: Exception) {
@@ -600,16 +588,9 @@ class ProjectWorkspace(
         output: String
     ): String? {
 
-        /*
-         * Preferred format from Jarvis Builder:
-         *
-         * <JARVIS_FILE>
-         * ...
-         * </JARVIS_FILE>
-         */
         val tagged =
             Regex(
-                "(?s)<JARVIS_FILE>\\\\s*(.*?)\\\\s*</JARVIS_FILE>",
+                "(?s)<JARVIS_FILE>\\s*(.*?)\\s*</JARVIS_FILE>",
                 RegexOption.IGNORE_CASE
             )
                 .find(output)
@@ -621,12 +602,9 @@ class ProjectWorkspace(
             return tagged
         }
 
-        /*
-         * Fallback for normal Markdown HTML blocks.
-         */
         val fenced =
             Regex(
-                "(?s)```(?:html)?\\\\s*(.*?)\\\\s*```",
+                "(?s)```(?:html)?\\s*(.*?)\\s*```",
                 RegexOption.IGNORE_CASE
             )
                 .find(output)
@@ -639,7 +617,7 @@ class ProjectWorkspace(
         }
 
         /*
-         * Final fallback if the model outputs raw HTML.
+         * Final fallback if Jarvis outputs raw HTML.
          */
         val doctype =
             output.indexOf(
@@ -648,6 +626,7 @@ class ProjectWorkspace(
             )
 
         if (doctype >= 0) {
+
             return output
                 .substring(doctype)
                 .trim()
@@ -660,6 +639,7 @@ class ProjectWorkspace(
             )
 
         if (html >= 0) {
+
             return output
                 .substring(html)
                 .trim()
@@ -689,20 +669,21 @@ class ProjectWorkspace(
             !lower.contains("<html") &&
             !lower.contains("<!doctype")
         ) {
+
             problems.add(
                 "Missing HTML document structure."
             )
         }
 
         if (!lower.contains("<body")) {
+
             problems.add(
                 "Missing BODY element."
             )
         }
 
-        if (
-            !lower.contains("</html>")
-        ) {
+        if (!lower.contains("</html>")) {
+
             problems.add(
                 "Missing closing HTML element."
             )
@@ -720,6 +701,7 @@ class ProjectWorkspace(
                         "<meta name='viewport'"
                     )
                 ) {
+
                     problems.add(
                         "Website is missing a mobile viewport."
                     )
@@ -728,17 +710,15 @@ class ProjectWorkspace(
 
             JarvisProjectType.GAME_2D -> {
 
-                if (
-                    !lower.contains("<canvas")
-                ) {
+                if (!lower.contains("<canvas")) {
+
                     problems.add(
                         "2D game has no Canvas."
                     )
                 }
 
-                if (
-                    !lower.contains("<script")
-                ) {
+                if (!lower.contains("<script")) {
+
                     problems.add(
                         "2D game has no game script."
                     )
@@ -749,6 +729,7 @@ class ProjectWorkspace(
                         "requestanimationframe"
                     )
                 ) {
+
                     problems.add(
                         "2D game has no animation/game loop."
                     )
@@ -772,6 +753,7 @@ class ProjectWorkspace(
                         )
 
                 if (!hasThree) {
+
                     problems.add(
                         "3D game has no Three.js engine."
                     )
@@ -782,6 +764,7 @@ class ProjectWorkspace(
                         "requestanimationframe"
                     )
                 ) {
+
                     problems.add(
                         "3D game has no animation/game loop."
                     )
@@ -816,18 +799,18 @@ You create complete runnable web projects for the user.
 IMPORTANT RULES:
 
 1. Never confuse a WEBSITE with a GAME.
-2. Never change the project type unless the user explicitly asks.
+2. Never change the current project type unless the user explicitly asks to create a new project.
 3. Return ONE complete runnable index.html file.
 4. Put HTML, CSS and JavaScript into the same index.html.
 5. Never use TODO placeholders.
 6. Never write "rest of code here".
 7. Never replace code with ellipses.
-8. The result must work on Android/mobile screens.
-9. Preserve existing functionality when editing a project.
-10. Finish the implementation instead of only explaining how to do it.
-11. Fix obvious errors before returning the project.
-12. Keep controls visible and usable on touchscreens.
-13. Return the finished file between exactly these markers:
+8. Everything must work on Android/mobile screens.
+9. Preserve existing functionality when editing.
+10. Finish implementations instead of only explaining them.
+11. Check obvious errors before returning the project.
+12. Keep controls visible and touch friendly.
+13. Return the completed file between exactly:
 
 <JARVIS_FILE>
 FULL FILE HERE
@@ -846,18 +829,21 @@ PROJECT TYPE: WEBSITE
 
 You are in WEBSITE BUILDER mode.
 
-Build a responsive, polished website.
+Create a polished responsive website.
 
 Use:
 - semantic HTML
 - responsive CSS
 - JavaScript where useful
 - mobile navigation where appropriate
-- accessible buttons and controls
+- accessible controls
 - professional layouts
-- touch friendly interaction
+- touch-friendly interaction
 
-Do NOT turn this project into a game unless the user explicitly requests a new game project.
+This is a WEBSITE.
+
+Do not accidentally add game architecture.
+Do not convert it into a game unless the user explicitly asks for a NEW game project.
 """.trimIndent()
 
                 JarvisProjectType.GAME_2D ->
@@ -867,7 +853,7 @@ PROJECT TYPE: 2D WEB GAME
 
 You are in 2D GAME BUILDER mode.
 
-Build an actual playable 2D browser game.
+Create an actual playable 2D browser game.
 
 Use:
 - HTML5 Canvas
@@ -884,7 +870,9 @@ Use:
 
 The result must be playable, not merely an animation.
 
-Do NOT convert it into a website or 3D game unless the user explicitly requests a new project.
+This is a 2D GAME.
+
+Do not convert it into a normal website or 3D game unless the user explicitly requests a NEW project.
 """.trimIndent()
 
                 JarvisProjectType.GAME_3D ->
@@ -894,9 +882,9 @@ PROJECT TYPE: 3D WEB GAME
 
 You are in 3D GAME BUILDER mode.
 
-Build an actual playable 3D browser game.
+Create an actual playable 3D browser game.
 
-Use Three.js as the 3D rendering engine.
+Use Three.js.
 
 Preferred import:
 
@@ -907,7 +895,7 @@ Include:
 - camera
 - renderer
 - lighting
-- game loop
+- requestAnimationFrame game loop
 - responsive resizing
 - gameplay state
 - Android/mobile touch controls
@@ -919,7 +907,9 @@ Include:
 
 The result must be playable, not merely a 3D scene.
 
-Do NOT convert it into a website or 2D game unless the user explicitly requests a new project.
+This is a 3D GAME.
+
+Do not convert it into a website or 2D game unless the user explicitly requests a NEW project.
 """.trimIndent()
 
                 JarvisProjectType.UNKNOWN ->
@@ -927,14 +917,11 @@ Do NOT convert it into a website or 2D game unless the user explicitly requests 
                     """
 PROJECT TYPE: NOT SELECTED
 
-Do not build anything yet.
+Do not generate a project yet.
 
-Ask the user whether they want:
+Ask the user:
 
-WEBSITE
-2D GAME
-or
-3D GAME
+"Would you like me to build that as a WEBSITE, 2D GAME, or 3D GAME?"
 """.trimIndent()
             }
 
@@ -946,7 +933,7 @@ $specialist
     }
 
     // ============================================================
-    // EDIT / CONTINUE PROMPT
+    // EXISTING PROJECT EDITING
     // ============================================================
 
     fun createEditPrompt(
@@ -964,19 +951,32 @@ You are modifying an EXISTING Jarvis project.
 PROJECT NAME:
 ${project.name}
 
-PROJECT TYPE:
+PROJECT ID:
+${project.id}
+
+LOCKED PROJECT TYPE:
 ${project.type.name}
 
 USER REQUEST:
 $userRequest
 
 IMPORTANT:
-Keep this project as ${project.type.name}.
-Do not accidentally convert it into another project type.
-Preserve features that the user did not ask you to remove.
-Return the COMPLETE updated index.html, not a patch.
 
-CURRENT PROJECT FILE:
+Keep this project as ${project.type.name}.
+
+Do NOT convert the project into another type.
+
+Preserve everything that the user did not ask to remove.
+
+Implement the requested changes into the existing project.
+
+Fix obvious errors you encounter.
+
+Return the COMPLETE updated index.html.
+
+Do not return a patch.
+
+CURRENT PROJECT:
 
 <JARVIS_EXISTING_FILE>
 $existing
@@ -1007,7 +1007,7 @@ created=${System.currentTimeMillis()}
     }
 
     // ============================================================
-    // PROJECT NAME
+    // PROJECT NAMING
     // ============================================================
 
     fun suggestedProjectName(
@@ -1016,10 +1016,9 @@ created=${System.currentTimeMillis()}
     ): String {
 
         var cleaned =
-            request
-                .lowercase(
-                    Locale.getDefault()
-                )
+            request.lowercase(
+                Locale.getDefault()
+            )
 
         val removable =
             listOf(
@@ -1047,6 +1046,7 @@ created=${System.currentTimeMillis()}
             )
 
         removable.forEach {
+
             cleaned =
                 cleaned.replace(
                     it,
@@ -1061,7 +1061,7 @@ created=${System.currentTimeMillis()}
                     " "
                 )
                 .replace(
-                    Regex("\\\\s+"),
+                    Regex("\\s+"),
                     " "
                 )
                 .trim()
