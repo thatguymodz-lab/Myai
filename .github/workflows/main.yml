@@ -61,7 +61,6 @@ jobs:
           include(":app")
           EOF
 
-          # AndroidX fix
           cat > gradle.properties <<'EOF'
           android.useAndroidX=true
           android.enableJetifier=true
@@ -104,7 +103,12 @@ jobs:
 
           dependencies {
               implementation("androidx.core:core-ktx:1.15.0")
+
+              // Required for ComponentActivity + lifecycleScope support
+              implementation("androidx.activity:activity-ktx:1.10.1")
+
               implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+
               implementation("dev.ffmpegkit-maintained:llama-android:0.1.1")
           }
           EOF
@@ -159,7 +163,6 @@ jobs:
           package com.novajarvis.android
 
           import android.Manifest
-          import android.app.Activity
           import android.app.AlertDialog
           import android.content.Intent
           import android.content.pm.PackageManager
@@ -177,23 +180,28 @@ jobs:
           import android.widget.LinearLayout
           import android.widget.ScrollView
           import android.widget.TextView
+
+          import androidx.activity.ComponentActivity
           import androidx.core.app.ActivityCompat
           import androidx.core.content.ContextCompat
           import androidx.core.view.ViewCompat
           import androidx.core.view.WindowInsetsCompat
           import androidx.lifecycle.lifecycleScope
+
           import dev.ffmpegkit.llama.Llama
           import dev.ffmpegkit.llama.LlamaConfig
+
           import kotlinx.coroutines.Dispatchers
           import kotlinx.coroutines.launch
           import kotlinx.coroutines.withContext
+
           import java.io.File
           import java.net.HttpURLConnection
           import java.net.URL
           import java.util.Locale
 
           class MainActivity :
-              Activity(),
+              ComponentActivity(),
               TextToSpeech.OnInitListener {
 
               private val cyan =
@@ -506,8 +514,9 @@ jobs:
                           gravity =
                               Gravity.CENTER_VERTICAL
 
-                          background =
+                          setBackground(
                               panelShape()
+                          )
 
                           setPadding(
                               8,
@@ -612,8 +621,9 @@ jobs:
                               }
                           )
 
-                          background =
+                          setBackground(
                               panelShape()
+                          )
 
                           setPadding(
                               20,
@@ -1060,6 +1070,8 @@ jobs:
                                           }
                                       }
                               }
+
+                          connection.disconnect()
 
                           if (
                               temporary.length() <
