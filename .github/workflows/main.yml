@@ -103,12 +103,8 @@ jobs:
 
           dependencies {
               implementation("androidx.core:core-ktx:1.15.0")
-
-              // Required for ComponentActivity + lifecycleScope support
               implementation("androidx.activity:activity-ktx:1.10.1")
-
               implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-
               implementation("dev.ffmpegkit-maintained:llama-android:0.1.1")
           }
           EOF
@@ -122,7 +118,6 @@ jobs:
               <application
                   android:allowBackup="true"
                   android:label="Jarvis"
-                  android:extractNativeLibs="true"
                   android:theme="@style/AppTheme">
 
                   <activity
@@ -207,7 +202,7 @@ jobs:
               private val cyan =
                   Color.rgb(55, 220, 255)
 
-              private val background =
+              private val jarvisBackground =
                   Color.rgb(2, 8, 17)
 
               private val panel =
@@ -263,15 +258,13 @@ jobs:
                   savedInstanceState: Bundle?
               ) {
 
-                  super.onCreate(
-                      savedInstanceState
-                  )
+                  super.onCreate(savedInstanceState)
 
                   window.statusBarColor =
-                      background
+                      jarvisBackground
 
                   window.navigationBarColor =
-                      background
+                      jarvisBackground
 
                   tts =
                       TextToSpeech(
@@ -280,17 +273,11 @@ jobs:
                       )
 
                   buildInterface()
-
                   restoreMemory()
 
-                  if (
-                      modelFile.exists()
-                  ) {
-
+                  if (modelFile.exists()) {
                       loadModel()
-
                   } else {
-
                       addMessage(
                           "JARVIS",
                           "V2 online. Tap MODEL once to download my local AI brain.",
@@ -303,14 +290,8 @@ jobs:
                   GradientDrawable {
 
                   return GradientDrawable().apply {
-
-                      setColor(
-                          panel
-                      )
-
-                      cornerRadius =
-                          28f
-
+                      setColor(panel)
+                      cornerRadius = 28f
                       setStroke(
                           1,
                           Color.rgb(
@@ -326,73 +307,55 @@ jobs:
 
                   root =
                       LinearLayout(this).apply {
-
                           orientation =
                               LinearLayout.VERTICAL
 
                           setBackgroundColor(
-                              background
+                              jarvisBackground
                           )
                       }
 
-                  ViewCompat
-                      .setOnApplyWindowInsetsListener(
-                          root
-                      ) { view, insets ->
+                  ViewCompat.setOnApplyWindowInsetsListener(
+                      root
+                  ) { view, insets ->
 
-                          val bars =
-                              insets.getInsets(
-                                  WindowInsetsCompat
-                                      .Type
-                                      .systemBars()
-                              )
-
-                          view.setPadding(
-                              20,
-                              bars.top + 10,
-                              20,
-                              bars.bottom + 10
+                      val bars =
+                          insets.getInsets(
+                              WindowInsetsCompat
+                                  .Type
+                                  .systemBars()
                           )
 
-                          insets
-                      }
+                      view.setPadding(
+                          20,
+                          bars.top + 10,
+                          20,
+                          bars.bottom + 10
+                      )
+
+                      insets
+                  }
 
                   val title =
                       TextView(this).apply {
-
                           text =
                               "JARVIS // ANDROID"
 
-                          textSize =
-                              25f
-
-                          gravity =
-                              Gravity.CENTER
-
-                          setTextColor(
-                              cyan
-                          )
+                          textSize = 25f
+                          gravity = Gravity.CENTER
+                          setTextColor(cyan)
                       }
 
-                  root.addView(
-                      title
-                  )
+                  root.addView(title)
 
                   status =
                       TextView(this).apply {
-
                           text =
                               "V2 • LOCAL AI • VOICE • BUILDER"
 
-                          textSize =
-                              12f
-
-                          gravity =
-                              Gravity.CENTER
-
-                          setTextColor(
-                              Color.LTGRAY
-                          )
+                          textSize = 12f
+                          gravity = Gravity.CENTER
+                          setTextColor(Color.LTGRAY)
 
                           setPadding(
                               0,
@@ -402,13 +365,10 @@ jobs:
                           )
                       }
 
-                  root.addView(
-                      status
-                  )
+                  root.addView(status)
 
                   val tools =
                       LinearLayout(this).apply {
-
                           orientation =
                               LinearLayout.HORIZONTAL
                       }
@@ -419,12 +379,8 @@ jobs:
                   ): Button {
 
                       return Button(this).apply {
-
-                          text =
-                              label
-
-                          textSize =
-                              11f
+                          text = label
+                          textSize = 11f
 
                           setOnClickListener {
                               action()
@@ -433,9 +389,7 @@ jobs:
                   }
 
                   tools.addView(
-                      toolButton(
-                          "MODEL"
-                      ) {
+                      toolButton("MODEL") {
                           showModelDialog()
                       },
                       LinearLayout.LayoutParams(
@@ -446,9 +400,7 @@ jobs:
                   )
 
                   tools.addView(
-                      toolButton(
-                          "BUILDER"
-                      ) {
+                      toolButton("BUILDER") {
                           showBuilderDialog()
                       },
                       LinearLayout.LayoutParams(
@@ -459,9 +411,7 @@ jobs:
                   )
 
                   tools.addView(
-                      toolButton(
-                          "CLEAR"
-                      ) {
+                      toolButton("CLEAR") {
                           clearMemory()
                       },
                       LinearLayout.LayoutParams(
@@ -471,16 +421,13 @@ jobs:
                       )
                   )
 
-                  root.addView(
-                      tools
-                  )
+                  root.addView(tools)
 
                   scroll =
                       ScrollView(this)
 
                   chat =
                       LinearLayout(this).apply {
-
                           orientation =
                               LinearLayout.VERTICAL
 
@@ -492,9 +439,7 @@ jobs:
                           )
                       }
 
-                  scroll.addView(
-                      chat
-                  )
+                  scroll.addView(chat)
 
                   root.addView(
                       scroll,
@@ -528,7 +473,6 @@ jobs:
 
                   input =
                       EditText(this).apply {
-
                           hint =
                               "Ask Jarvis..."
 
@@ -544,8 +488,7 @@ jobs:
                               Color.TRANSPARENT
                           )
 
-                          maxLines =
-                              4
+                          maxLines = 4
                       }
 
                   inputBar.addView(
@@ -559,41 +502,29 @@ jobs:
 
                   val microphone =
                       Button(this).apply {
-
-                          text =
-                              "MIC"
+                          text = "MIC"
 
                           setOnClickListener {
                               startVoice()
                           }
                       }
 
-                  inputBar.addView(
-                      microphone
-                  )
+                  inputBar.addView(microphone)
 
                   val send =
                       Button(this).apply {
-
-                          text =
-                              "SEND"
+                          text = "SEND"
 
                           setOnClickListener {
                               sendMessage()
                           }
                       }
 
-                  inputBar.addView(
-                      send
-                  )
+                  inputBar.addView(send)
 
-                  root.addView(
-                      inputBar
-                  )
+                  root.addView(inputBar)
 
-                  setContentView(
-                      root
-                  )
+                  setContentView(root)
               }
 
               private fun addMessage(
@@ -608,13 +539,10 @@ jobs:
                           text =
                               "$who\n$message"
 
-                          textSize =
-                              16f
+                          textSize = 16f
 
                           setTextColor(
-                              if (
-                                  who == "JARVIS"
-                              ) {
+                              if (who == "JARVIS") {
                                   cyan
                               } else {
                                   Color.WHITE
@@ -651,14 +579,10 @@ jobs:
                       params
                   )
 
-                  if (
-                      save
-                  ) {
+                  if (save) {
 
                       val type =
-                          if (
-                              who == "YOU"
-                          ) {
+                          if (who == "YOU") {
                               "U"
                           } else {
                               "A"
@@ -666,17 +590,16 @@ jobs:
 
                       memoryFile.appendText(
                           type +
-                          "|" +
-                          message.replace(
-                              "\n",
-                              " "
-                          ) +
-                          "\n"
+                              "|" +
+                              message.replace(
+                                  "\n",
+                                  " "
+                              ) +
+                              "\n"
                       )
                   }
 
                   scroll.post {
-
                       scroll.fullScroll(
                           View.FOCUS_DOWN
                       )
@@ -685,17 +608,13 @@ jobs:
 
               private fun restoreMemory() {
 
-                  if (
-                      !memoryFile.exists()
-                  ) {
+                  if (!memoryFile.exists()) {
                       return
                   }
 
                   memoryFile
                       .readLines()
-                      .takeLast(
-                          40
-                      )
+                      .takeLast(40)
                       .forEach { line ->
 
                           val parts =
@@ -704,14 +623,9 @@ jobs:
                                   limit = 2
                               )
 
-                          if (
-                              parts.size == 2
-                          ) {
-
+                          if (parts.size == 2) {
                               addMessage(
-                                  if (
-                                      parts[0] == "U"
-                                  ) {
+                                  if (parts[0] == "U") {
                                       "YOU"
                                   } else {
                                       "JARVIS"
@@ -726,7 +640,6 @@ jobs:
               private fun clearMemory() {
 
                   memoryFile.delete()
-
                   chat.removeAllViews()
 
                   addMessage(
@@ -744,33 +657,25 @@ jobs:
                           .toString()
                           .trim()
 
-                  if (
-                      question.isEmpty()
-                  ) {
+                  if (question.isEmpty()) {
                       return
                   }
 
-                  input.setText(
-                      ""
-                  )
+                  input.setText("")
 
                   addMessage(
                       "YOU",
                       question
                   )
 
-                  askLocalAI(
-                      question
-                  )
+                  askLocalAI(question)
               }
 
               private fun askLocalAI(
                   prompt: String
               ) {
 
-                  if (
-                      !modelFile.exists()
-                  ) {
+                  if (!modelFile.exists()) {
 
                       addMessage(
                           "JARVIS",
@@ -790,21 +695,14 @@ jobs:
                           ensureModel()
 
                           val recent =
-                              if (
-                                  memoryFile.exists()
-                              ) {
+                              if (memoryFile.exists()) {
 
                                   memoryFile
                                       .readLines()
-                                      .takeLast(
-                                          12
-                                      )
-                                      .joinToString(
-                                          "\n"
-                                      )
+                                      .takeLast(12)
+                                      .joinToString("\n")
 
                               } else {
-
                                   ""
                               }
 
@@ -817,13 +715,12 @@ jobs:
                                       model!!,
                                       prompt =
                                           "Recent conversation:\n" +
-                                          recent +
-                                          "\n\nUser: " +
-                                          prompt,
+                                              recent +
+                                              "\n\nUser: " +
+                                              prompt,
                                       systemPrompt =
                                           "You are Jarvis, a private on-device Android assistant. Be concise, useful and accurate.",
-                                      maxTokens =
-                                          384
+                                      maxTokens = 384
                                   )
                               }
 
@@ -832,9 +729,7 @@ jobs:
                               result.text
                           )
 
-                          speak(
-                              result.text
-                          )
+                          speak(result.text)
 
                           status.text =
                               "LOCAL AI READY"
@@ -849,7 +744,7 @@ jobs:
                           addMessage(
                               "JARVIS",
                               "Local AI error: " +
-                              error.message
+                                  error.message
                           )
                       }
                   }
@@ -857,9 +752,7 @@ jobs:
 
               private suspend fun ensureModel() {
 
-                  if (
-                      model != null
-                  ) {
+                  if (model != null) {
                       return
                   }
 
@@ -874,11 +767,8 @@ jobs:
 
                               config =
                                   LlamaConfig(
-                                      contextSize =
-                                          2048,
-
-                                      threads =
-                                          4
+                                      contextSize = 2048,
+                                      threads = 4
                                   )
                           )
                       }
@@ -908,7 +798,7 @@ jobs:
                           addMessage(
                               "JARVIS",
                               "Model load failed: " +
-                              error.message
+                                  error.message
                           )
                       }
                   }
@@ -920,49 +810,39 @@ jobs:
                       modelFile.exists()
 
                   val message =
-                      if (
-                          installed
-                      ) {
+                      if (installed) {
 
                           "Local model installed: " +
-                          (
-                              modelFile.length() /
-                              1024 /
-                              1024
-                          ) +
-                          " MB.\n\n" +
-                          "Jarvis can use this model without a cloud AI service."
+                              (
+                                  modelFile.length() /
+                                      1024 /
+                                      1024
+                                  ) +
+                              " MB.\n\n" +
+                              "Jarvis can use this model without a cloud AI service."
 
                       } else {
 
                           "Download Jarvis's compact starter AI model.\n\n" +
-                          "It is roughly 400 MB, so Wi-Fi is recommended.\n\n" +
-                          "You only need to download it once."
+                              "Wi-Fi is recommended.\n\n" +
+                              "You only need to download it once."
                       }
 
                   AlertDialog
-                      .Builder(
-                          this
-                      )
+                      .Builder(this)
                       .setTitle(
                           "Jarvis Local AI"
                       )
-                      .setMessage(
-                          message
-                      )
+                      .setMessage(message)
                       .setPositiveButton(
-                          if (
-                              installed
-                          ) {
+                          if (installed) {
                               "LOAD"
                           } else {
                               "DOWNLOAD"
                           }
                       ) { _, _ ->
 
-                          if (
-                              installed
-                          ) {
+                          if (installed) {
                               loadModel()
                           } else {
                               downloadModel()
@@ -997,22 +877,17 @@ jobs:
                               )
 
                           val connection =
-                              URL(
-                                  modelUrl
-                              )
+                              URL(modelUrl)
                                   .openConnection()
                                   as HttpURLConnection
 
-                          connection
-                              .instanceFollowRedirects =
+                          connection.instanceFollowRedirects =
                               true
 
-                          connection
-                              .connectTimeout =
+                          connection.connectTimeout =
                               20000
 
-                          connection
-                              .readTimeout =
+                          connection.readTimeout =
                               60000
 
                           connection
@@ -1025,25 +900,20 @@ jobs:
 
                                           val buffer =
                                               ByteArray(
-                                                  256 *
-                                                  1024
+                                                  256 * 1024
                                               )
 
                                           var total =
                                               0L
 
-                                          while (
-                                              true
-                                          ) {
+                                          while (true) {
 
                                               val count =
                                                   source.read(
                                                       buffer
                                                   )
 
-                                              if (
-                                                  count <= 0
-                                              ) {
+                                              if (count <= 0) {
                                                   break
                                               }
 
@@ -1053,19 +923,18 @@ jobs:
                                                   count
                                               )
 
-                                              total +=
-                                                  count
+                                              total += count
 
                                               runOnUiThread {
 
                                                   status.text =
                                                       "DOWNLOADING • " +
-                                                      (
-                                                          total /
-                                                          1024 /
-                                                          1024
-                                                      ) +
-                                                      " MB"
+                                                          (
+                                                              total /
+                                                                  1024 /
+                                                                  1024
+                                                              ) +
+                                                          " MB"
                                               }
                                           }
                                       }
@@ -1075,9 +944,7 @@ jobs:
 
                           if (
                               temporary.length() <
-                              50L *
-                              1024 *
-                              1024
+                              50L * 1024 * 1024
                           ) {
 
                               throw Exception(
@@ -1085,9 +952,7 @@ jobs:
                               )
                           }
 
-                          if (
-                              modelFile.exists()
-                          ) {
+                          if (modelFile.exists()) {
                               modelFile.delete()
                           }
 
@@ -1124,8 +989,8 @@ jobs:
                               addMessage(
                                   "JARVIS",
                                   "Model download failed: " +
-                                  error.message +
-                                  ". Tap MODEL to retry."
+                                      error.message +
+                                      ". Tap MODEL to retry."
                               )
                           }
                       }
@@ -1138,22 +1003,18 @@ jobs:
                       ContextCompat
                           .checkSelfPermission(
                               this,
-                              Manifest.permission
-                                  .RECORD_AUDIO
+                              Manifest.permission.RECORD_AUDIO
                           ) !=
-                      PackageManager
-                          .PERMISSION_GRANTED
+                      PackageManager.PERMISSION_GRANTED
                   ) {
 
-                      ActivityCompat
-                          .requestPermissions(
-                              this,
-                              arrayOf(
-                                  Manifest.permission
-                                      .RECORD_AUDIO
-                              ),
-                              7
-                          )
+                      ActivityCompat.requestPermissions(
+                          this,
+                          arrayOf(
+                              Manifest.permission.RECORD_AUDIO
+                          ),
+                          7
+                      )
 
                       return
                   }
@@ -1230,17 +1091,14 @@ jobs:
                               ?.firstOrNull()
                               ?: return
 
-                      input.setText(
-                          spoken
-                      )
-
+                      input.setText(spoken)
                       sendMessage()
                   }
               }
 
               override fun onRequestPermissionsResult(
                   requestCode: Int,
-                  permissions: Array<out String>,
+                  permissions: Array<String>,
                   grantResults: IntArray
               ) {
 
@@ -1252,10 +1110,8 @@ jobs:
 
                   if (
                       requestCode == 7 &&
-                      grantResults
-                          .firstOrNull() ==
-                      PackageManager
-                          .PERMISSION_GRANTED
+                      grantResults.firstOrNull() ==
+                      PackageManager.PERMISSION_GRANTED
                   ) {
 
                       startVoice()
@@ -1282,8 +1138,7 @@ jobs:
 
                   tts.speak(
                       message,
-                      TextToSpeech
-                          .QUEUE_FLUSH,
+                      TextToSpeech.QUEUE_FLUSH,
                       null,
                       "jarvis-response"
                   )
@@ -1307,15 +1162,11 @@ jobs:
                       }
 
                   AlertDialog
-                      .Builder(
-                          this
-                      )
+                      .Builder(this)
                       .setTitle(
                           "Jarvis AI Website Builder"
                       )
-                      .setView(
-                          description
-                      )
+                      .setView(description)
                       .setPositiveButton(
                           "BUILD"
                       ) { _, _ ->
@@ -1336,8 +1187,7 @@ jobs:
                           ) {
 
                               showWebsite(
-                                  previewFile
-                                      .readText()
+                                  previewFile.readText()
                               )
 
                           } else {
@@ -1359,15 +1209,11 @@ jobs:
                   request: String
               ) {
 
-                  if (
-                      request.isEmpty()
-                  ) {
+                  if (request.isEmpty()) {
                       return
                   }
 
-                  if (
-                      !modelFile.exists()
-                  ) {
+                  if (!modelFile.exists()) {
 
                       addMessage(
                           "JARVIS",
@@ -1393,16 +1239,12 @@ jobs:
 
                                   Llama.complete(
                                       model!!,
-
                                       prompt =
                                           "Build this website: " +
-                                          request,
-
+                                              request,
                                       systemPrompt =
                                           "You are an expert web developer. Return only one complete HTML document. Put all CSS and JavaScript inline. Do not use markdown code fences.",
-
-                                      maxTokens =
-                                          1400
+                                      maxTokens = 1400
                                   )
                               }
 
@@ -1448,9 +1290,7 @@ jobs:
                               html
                           )
 
-                          showWebsite(
-                              html
-                          )
+                          showWebsite(html)
 
                           status.text =
                               "WEBSITE READY"
@@ -1465,7 +1305,7 @@ jobs:
                           addMessage(
                               "JARVIS",
                               "Website builder error: " +
-                              error.message
+                                  error.message
                           )
                       }
                   }
@@ -1482,8 +1322,7 @@ jobs:
                               Color.WHITE
                           )
 
-                          settings
-                              .javaScriptEnabled =
+                          settings.javaScriptEnabled =
                               true
 
                           webViewClient =
@@ -1499,15 +1338,11 @@ jobs:
                       }
 
                   AlertDialog
-                      .Builder(
-                          this
-                      )
+                      .Builder(this)
                       .setTitle(
                           "Jarvis Website Preview"
                       )
-                      .setView(
-                          web
-                      )
+                      .setView(web)
                       .setPositiveButton(
                           "CLOSE",
                           null
@@ -1523,9 +1358,7 @@ jobs:
                   val loadedModel =
                       model
 
-                  if (
-                      loadedModel != null
-                  ) {
+                  if (loadedModel != null) {
 
                       lifecycleScope.launch {
 
