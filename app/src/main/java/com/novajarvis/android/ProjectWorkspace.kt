@@ -42,7 +42,7 @@ class ProjectWorkspace(
         )
     }
 
-    private val projectsRoot: File by lazy {
+    private val projectsRoot by lazy {
         File(
             context.filesDir,
             "jarvis_projects"
@@ -52,56 +52,60 @@ class ProjectWorkspace(
     }
 
     // ============================================================
-    // REQUEST ROUTING
+    // PROJECT TYPE DETECTION
     // ============================================================
 
     fun detectProjectType(
         request: String
     ): JarvisProjectType {
 
-        val text = request
-            .lowercase(Locale.getDefault())
-            .trim()
+        val text =
+            request
+                .lowercase(Locale.getDefault())
+                .trim()
 
         if (text.isBlank()) {
             return JarvisProjectType.UNKNOWN
         }
 
-        val explicit3D = listOf(
-            "3d game",
-            "3-d game",
-            "three dimensional game",
-            "three-dimensional game",
-            "webgl game",
-            "three.js game",
-            "threejs game"
-        )
+        val explicit3D =
+            listOf(
+                "3d game",
+                "3-d game",
+                "three dimensional game",
+                "three-dimensional game",
+                "webgl game",
+                "three.js game",
+                "threejs game"
+            )
 
-        val explicit2D = listOf(
-            "2d game",
-            "2-d game",
-            "two dimensional game",
-            "two-dimensional game",
-            "canvas game",
-            "platform game",
-            "platformer",
-            "top down game",
-            "top-down game",
-            "side scroller",
-            "side-scroller"
-        )
+        val explicit2D =
+            listOf(
+                "2d game",
+                "2-d game",
+                "two dimensional game",
+                "two-dimensional game",
+                "canvas game",
+                "platform game",
+                "platformer",
+                "top down game",
+                "top-down game",
+                "side scroller",
+                "side-scroller"
+            )
 
-        val websiteWords = listOf(
-            "website",
-            "web site",
-            "webpage",
-            "web page",
-            "landing page",
-            "portfolio site",
-            "business site",
-            "shop site",
-            "company site"
-        )
+        val websiteWords =
+            listOf(
+                "website",
+                "web site",
+                "webpage",
+                "web page",
+                "landing page",
+                "portfolio site",
+                "business site",
+                "shop site",
+                "company site"
+            )
 
         if (
             explicit3D.any {
@@ -149,8 +153,8 @@ class ProjectWorkspace(
         }
 
         /*
-         * If the user only says "make a game",
-         * Jarvis must ask 2D or 3D instead of guessing.
+         * Generic "game" is deliberately UNKNOWN.
+         * Jarvis must ask whether the user wants 2D or 3D.
          */
         if (mentionsGame) {
             return JarvisProjectType.UNKNOWN
@@ -167,39 +171,126 @@ class ProjectWorkspace(
         return JarvisProjectType.UNKNOWN
     }
 
+    // ============================================================
+    // NEW PROJECT VS EDIT ROUTING
+    // ============================================================
+
     fun isNewBuildRequest(
         request: String
     ): Boolean {
 
         val text =
-            request.lowercase(
-                Locale.getDefault()
+            request
+                .lowercase(Locale.getDefault())
+                .trim()
+
+        /*
+         * These phrases strongly indicate the user is editing
+         * the current project, even if they mention "website"
+         * or "game".
+         */
+        val editIndicators =
+            listOf(
+                "current website",
+                "current web site",
+                "current webpage",
+                "current web page",
+                "current game",
+                "current project",
+                "existing website",
+                "existing game",
+                "existing project",
+                "this website",
+                "this web site",
+                "this game",
+                "this project",
+                "my website",
+                "my game",
+                "my project",
+                "improve",
+                "update",
+                "edit",
+                "modify",
+                "fix",
+                "continue",
+                "upgrade",
+                "change",
+                "add to",
+                "remove from"
             )
 
-        val buildWords = listOf(
-            "build",
-            "make",
-            "create",
-            "develop",
-            "code",
-            "generate",
-            "start"
-        )
+        if (
+            getCurrentProject() != null &&
+            editIndicators.any {
+                text.contains(it)
+            }
+        ) {
+            return false
+        }
 
-        val projectWords = listOf(
-            "website",
-            "web site",
-            "webpage",
-            "web page",
-            "game",
-            "2d",
-            "3d",
-            "three.js",
-            "threejs",
-            "webgl"
-        )
+        /*
+         * When a project already exists, Jarvis should only
+         * create another project when the user clearly says
+         * they want a NEW one.
+         */
+        if (getCurrentProject() != null) {
 
-        return buildWords.any {
+            val explicitNewPhrases =
+                listOf(
+                    "create a new",
+                    "create another",
+                    "build a new",
+                    "build another",
+                    "make a new",
+                    "make another",
+                    "start a new",
+                    "start another",
+                    "new website",
+                    "new web site",
+                    "new 2d game",
+                    "new 3d game",
+                    "another website",
+                    "another 2d game",
+                    "another 3d game",
+                    "separate website",
+                    "separate game",
+                    "separate project"
+                )
+
+            return explicitNewPhrases.any {
+                text.contains(it)
+            }
+        }
+
+        /*
+         * If no project exists yet, normal creation language
+         * is enough to start the first project.
+         */
+        val creationWords =
+            listOf(
+                "build",
+                "create",
+                "make",
+                "develop",
+                "generate",
+                "start"
+            )
+
+        val projectWords =
+            listOf(
+                "website",
+                "web site",
+                "webpage",
+                "web page",
+                "game",
+                "2d",
+                "3d",
+                "three.js",
+                "threejs",
+                "webgl"
+            )
+
+        return creationWords.any {
             text.contains(it)
         } &&
             projectWords.any {
@@ -216,33 +307,94 @@ class ProjectWorkspace(
         }
 
         val text =
-            request.lowercase(
-                Locale.getDefault()
+            request
+                .lowercase(Locale.getDefault())
+                .trim()
+
+        /*
+         * Explicit NEW project language always wins.
+         */
+        val explicitNew =
+            listOf(
+                "create a new",
+                "create another",
+                "build a new",
+                "build another",
+                "make a new",
+                "make another",
+                "start a new",
+                "start another",
+                "new website",
+                "new 2d game",
+                "new 3d game",
+                "another website",
+                "another 2d game",
+                "another 3d game",
+                "separate project"
             )
 
-        val editWords = listOf(
-            "change",
-            "edit",
-            "update",
-            "improve",
-            "fix",
-            "add",
-            "remove",
-            "continue",
-            "make it",
-            "make the",
-            "make this",
-            "replace",
-            "upgrade",
-            "increase",
-            "decrease",
-            "bigger",
-            "smaller",
-            "faster",
-            "slower"
-        )
+        if (
+            explicitNew.any {
+                text.contains(it)
+            }
+        ) {
+            return false
+        }
 
-        return editWords.any {
+        val editWords =
+            listOf(
+                "change",
+                "edit",
+                "update",
+                "improve",
+                "fix",
+                "add",
+                "remove",
+                "continue",
+                "upgrade",
+                "replace",
+                "increase",
+                "decrease",
+                "bigger",
+                "smaller",
+                "faster",
+                "slower",
+                "better",
+                "more",
+                "less",
+                "make it",
+                "make the",
+                "make this",
+                "give it",
+                "put",
+                "move",
+                "resize",
+                "rework",
+                "redesign"
+            )
+
+        if (
+            editWords.any {
+                text.contains(it)
+            }
+        ) {
+            return true
+        }
+
+        val currentReferences =
+            listOf(
+                "current project",
+                "current website",
+                "current game",
+                "this project",
+                "this website",
+                "this game",
+                "my project",
+                "my website",
+                "my game"
+            )
+
+        return currentReferences.any {
             text.contains(it)
         }
     }
@@ -288,10 +440,6 @@ class ProjectWorkspace(
                     "unknown"
             }
 
-        /*
-         * Websites, 2D games and 3D games live in
-         * separate directories.
-         */
         val directory =
             File(
                 projectsRoot,
@@ -313,9 +461,13 @@ class ProjectWorkspace(
                 directory = directory
             )
 
-        writeProjectInfo(project)
+        writeProjectInfo(
+            project
+        )
 
-        setCurrentProject(project)
+        setCurrentProject(
+            project
+        )
 
         return project
     }
@@ -367,17 +519,20 @@ class ProjectWorkspace(
 
         val type =
             try {
+
                 JarvisProjectType.valueOf(
                     typeName
                 )
+
             } catch (_: Exception) {
+
                 return null
             }
 
         return findProject(
-            id = id,
-            type = type,
-            name = name
+            id,
+            type,
+            name
         )
     }
 
@@ -387,7 +542,7 @@ class ProjectWorkspace(
         name: String
     ): JarvisProject? {
 
-        val typeFolder =
+        val folder =
             when (type) {
 
                 JarvisProjectType.WEBSITE ->
@@ -406,7 +561,7 @@ class ProjectWorkspace(
         val directory =
             File(
                 projectsRoot,
-                "$typeFolder/${name}_$id"
+                "$folder/${name}_$id"
             )
 
         if (!directory.exists()) {
@@ -414,15 +569,15 @@ class ProjectWorkspace(
         }
 
         return JarvisProject(
-            id = id,
-            name = name,
-            type = type,
-            directory = directory
+            id,
+            name,
+            type,
+            directory
         )
     }
 
     // ============================================================
-    // FILE STORAGE
+    // PROJECT FILES
     // ============================================================
 
     fun saveMainFile(
@@ -430,13 +585,15 @@ class ProjectWorkspace(
         html: String
     ): File {
 
-        if (html.isBlank()) {
-            throw IllegalArgumentException(
-                "Jarvis generated an empty project."
-            )
+        require(
+            html.isNotBlank()
+        ) {
+            "Jarvis generated an empty project."
         }
 
-        backupCurrentVersion(project)
+        backupCurrentVersion(
+            project
+        )
 
         val index =
             File(
@@ -444,9 +601,13 @@ class ProjectWorkspace(
                 INDEX_FILE
             )
 
-        index.writeText(html)
+        index.writeText(
+            html
+        )
 
-        setCurrentProject(project)
+        setCurrentProject(
+            project
+        )
 
         return index
     }
@@ -455,19 +616,22 @@ class ProjectWorkspace(
         project: JarvisProject
     ): String? {
 
-        val index =
+        val file =
             File(
                 project.directory,
                 INDEX_FILE
             )
 
-        if (!index.exists()) {
+        if (!file.exists()) {
             return null
         }
 
         return try {
-            index.readText()
+
+            file.readText()
+
         } catch (_: Exception) {
+
             null
         }
     }
@@ -479,20 +643,18 @@ class ProjectWorkspace(
             getCurrentProject()
                 ?: return null
 
-        val index =
-            File(
-                project.directory,
-                INDEX_FILE
-            )
+        return File(
+            project.directory,
+            INDEX_FILE
+        ).takeIf {
 
-        return index.takeIf {
             it.exists() &&
                 it.length() > 0L
         }
     }
 
     // ============================================================
-    // VERSION BACKUPS
+    // BACKUPS
     // ============================================================
 
     private fun backupCurrentVersion(
@@ -526,15 +688,10 @@ class ProjectWorkspace(
                 Locale.US
             )
 
-        val stamp =
-            formatter.format(
-                Date()
-            )
-
         val backup =
             File(
                 backupDirectory,
-                "index_$stamp.html"
+                "index_${formatter.format(Date())}.html"
             )
 
         current.copyTo(
@@ -558,7 +715,7 @@ class ProjectWorkspace(
                     it.isFile &&
                         it.extension.equals(
                             "html",
-                            ignoreCase = true
+                            true
                         )
                 }
                 ?.sortedByDescending {
@@ -566,9 +723,6 @@ class ProjectWorkspace(
                 }
                 ?: return
 
-        /*
-         * Keep the newest 10 versions.
-         */
         backups
             .drop(10)
             .forEach {
@@ -581,7 +735,7 @@ class ProjectWorkspace(
     }
 
     // ============================================================
-    // OUTPUT EXTRACTION
+    // AI OUTPUT EXTRACTION
     // ============================================================
 
     fun extractGeneratedHtml(
@@ -616,9 +770,6 @@ class ProjectWorkspace(
             return fenced
         }
 
-        /*
-         * Final fallback if Jarvis outputs raw HTML.
-         */
         val doctype =
             output.indexOf(
                 "<!doctype",
@@ -794,29 +945,37 @@ class ProjectWorkspace(
             """
 You are JARVIS BUILDER.
 
-You create complete runnable web projects for the user.
+Your job is to CREATE AND EDIT complete runnable projects.
 
-IMPORTANT RULES:
+CRITICAL RULES:
 
-1. Never confuse a WEBSITE with a GAME.
-2. Never change the current project type unless the user explicitly asks to create a new project.
-3. Return ONE complete runnable index.html file.
-4. Put HTML, CSS and JavaScript into the same index.html.
-5. Never use TODO placeholders.
-6. Never write "rest of code here".
-7. Never replace code with ellipses.
-8. Everything must work on Android/mobile screens.
-9. Preserve existing functionality when editing.
-10. Finish implementations instead of only explaining them.
-11. Check obvious errors before returning the project.
-12. Keep controls visible and touch friendly.
-13. Return the completed file between exactly:
+1. WEBSITE, 2D GAME and 3D GAME are separate project types.
+2. Never silently convert one project type into another.
+3. When editing, preserve the existing project.
+4. Implement the user's requested changes into the existing code.
+5. Return ONE COMPLETE index.html file.
+6. Include all required HTML, CSS and JavaScript.
+7. Never return partial code.
+8. Never use TODO.
+9. Never write "rest of code here".
+10. Never replace sections with ellipses.
+11. Never merely describe what should be built.
+12. Build it.
+13. Make the result responsive.
+14. Make controls touch friendly.
+15. Check the code for obvious syntax mistakes.
+16. Do not invent local files or image paths that do not exist.
+17. Avoid broken image URLs.
+18. Prefer CSS artwork, gradients, shapes, emoji or inline SVG when artwork is needed and no real asset has been supplied.
+19. Do not depend on random stock-image URLs.
+20. Keep the project usable if optional visual resources fail.
+21. Return the finished file exactly between:
 
 <JARVIS_FILE>
-FULL FILE HERE
+FULL COMPLETE INDEX.HTML
 </JARVIS_FILE>
 
-Do not put explanations inside the JARVIS_FILE markers.
+Do not put explanations inside JARVIS_FILE.
 """.trimIndent()
 
         val specialist =
@@ -827,101 +986,117 @@ Do not put explanations inside the JARVIS_FILE markers.
                     """
 PROJECT TYPE: WEBSITE
 
-You are in WEBSITE BUILDER mode.
+You are in WEBSITE BUILDER MODE.
 
-Create a polished responsive website.
+Build a polished responsive WEBSITE.
 
-Use:
-- semantic HTML
-- responsive CSS
-- JavaScript where useful
-- mobile navigation where appropriate
-- accessible controls
-- professional layouts
-- touch-friendly interaction
+The finished page should look intentionally designed rather than like raw browser HTML.
 
-This is a WEBSITE.
+REQUIREMENTS:
 
-Do not accidentally add game architecture.
-Do not convert it into a game unless the user explicitly asks for a NEW game project.
+- Include <!DOCTYPE html>.
+- Include a mobile viewport meta tag.
+- Include complete CSS.
+- Use a coherent visual theme.
+- Use spacing, cards, typography and layout deliberately.
+- Style buttons and navigation.
+- Use responsive layouts.
+- Make it look good on an Android phone.
+- Use semantic HTML.
+- Add useful JavaScript interaction when appropriate.
+- Use GBP (£) when the user is clearly asking for UK-style prices.
+- Do not output broken placeholder images.
+- If no image assets are available, create attractive visual sections using CSS, gradients, emoji or inline SVG instead.
+- Do not use an external image simply to fill empty space.
+- Make buttons visibly styled, not default browser links.
+- Do not turn the website into a game.
+
+Return a complete finished website.
 """.trimIndent()
 
                 JarvisProjectType.GAME_2D ->
 
                     """
-PROJECT TYPE: 2D WEB GAME
+PROJECT TYPE: 2D GAME
 
-You are in 2D GAME BUILDER mode.
+You are in 2D GAME BUILDER MODE.
 
-Create an actual playable 2D browser game.
+Build a PLAYABLE browser game using HTML5 Canvas.
 
-Use:
-- HTML5 Canvas
-- JavaScript
-- requestAnimationFrame
-- keyboard controls
-- Android/mobile touch controls
-- gameplay state
-- collision detection where required
-- scoring/progression where appropriate
-- restart/game-over handling
-- responsive canvas sizing
-- visible HUD where appropriate
+REQUIREMENTS:
 
-The result must be playable, not merely an animation.
+- HTML5 Canvas.
+- JavaScript game logic.
+- requestAnimationFrame.
+- responsive canvas.
+- keyboard controls.
+- Android touch controls.
+- player movement.
+- gameplay objective.
+- collision logic where appropriate.
+- scoring or progression where appropriate.
+- HUD.
+- restart handling.
+- game-over or win handling where appropriate.
+- prevent touch controls from scrolling the page during gameplay.
+- use generated Canvas graphics rather than broken image assets.
+- keep gameplay code self contained.
+- do not merely create an animation.
+- do not turn the project into a normal website.
+- do not turn it into a 3D game.
 
-This is a 2D GAME.
-
-Do not convert it into a normal website or 3D game unless the user explicitly requests a NEW project.
+Return a complete playable 2D game.
 """.trimIndent()
 
                 JarvisProjectType.GAME_3D ->
 
                     """
-PROJECT TYPE: 3D WEB GAME
+PROJECT TYPE: 3D GAME
 
-You are in 3D GAME BUILDER mode.
+You are in 3D GAME BUILDER MODE.
 
-Create an actual playable 3D browser game.
+Build a PLAYABLE 3D browser game using Three.js.
 
-Use Three.js.
-
-Preferred import:
+Use:
 
 https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js
 
-Include:
-- scene
-- camera
-- renderer
-- lighting
-- requestAnimationFrame game loop
-- responsive resizing
-- gameplay state
-- Android/mobile touch controls
-- keyboard controls where useful
-- camera behaviour
-- collision/gameplay logic where required
-- HUD
-- restart/game-over handling where appropriate
+REQUIREMENTS:
 
-The result must be playable, not merely a 3D scene.
+- Three.js scene.
+- perspective camera.
+- WebGL renderer.
+- lighting.
+- visible 3D player/world.
+- requestAnimationFrame.
+- responsive resizing.
+- Android touch controls.
+- keyboard controls where appropriate.
+- player movement.
+- camera behaviour.
+- gameplay objective.
+- collision/gameplay logic where appropriate.
+- HUD.
+- restart/game-over handling where appropriate.
+- simple generated geometry/materials instead of nonexistent asset files.
+- do not reference local textures/models that do not exist.
+- keep the first version reasonably lightweight for a phone.
+- do not merely make a static 3D scene.
+- do not turn it into a website or 2D game.
 
-This is a 3D GAME.
-
-Do not convert it into a website or 2D game unless the user explicitly requests a NEW project.
+Return a complete playable 3D game.
 """.trimIndent()
 
                 JarvisProjectType.UNKNOWN ->
 
                     """
-PROJECT TYPE: NOT SELECTED
+PROJECT TYPE NOT SELECTED.
 
-Do not generate a project yet.
+Do not guess.
 
-Ask the user:
+Ask:
 
-"Would you like me to build that as a WEBSITE, 2D GAME, or 3D GAME?"
+Would you like me to build that as a WEBSITE, 2D GAME, or 3D GAME?
 """.trimIndent()
             }
 
@@ -933,7 +1108,7 @@ $specialist
     }
 
     // ============================================================
-    // EXISTING PROJECT EDITING
+    // EDIT EXISTING PROJECT
     // ============================================================
 
     fun createEditPrompt(
@@ -942,11 +1117,12 @@ $specialist
     ): String {
 
         val existing =
-            readMainFile(project)
-                .orEmpty()
+            readMainFile(
+                project
+            ).orEmpty()
 
         return """
-You are modifying an EXISTING Jarvis project.
+You are editing the user's CURRENT EXISTING PROJECT.
 
 PROJECT NAME:
 ${project.name}
@@ -957,35 +1133,39 @@ ${project.id}
 LOCKED PROJECT TYPE:
 ${project.type.name}
 
-USER REQUEST:
+USER'S REQUEST:
 $userRequest
 
-IMPORTANT:
+IMPORTANT EDITING RULES:
 
-Keep this project as ${project.type.name}.
+- This is NOT a new project.
+- Modify the existing project below.
+- Keep project ID ${project.id}.
+- Keep project type ${project.type.name}.
+- Preserve features the user did not ask to remove.
+- Preserve working code wherever possible.
+- Implement the requested improvements.
+- Fix obvious errors you notice.
+- Do not replace a detailed project with a simpler unrelated project.
+- Do not reset the design unless the user asks.
+- Do not invent missing local image files.
+- Avoid broken external image URLs.
+- Return the COMPLETE updated index.html.
+- Never return only the changed section.
+- Never return a patch.
 
-Do NOT convert the project into another type.
-
-Preserve everything that the user did not ask to remove.
-
-Implement the requested changes into the existing project.
-
-Fix obvious errors you encounter.
-
-Return the COMPLETE updated index.html.
-
-Do not return a patch.
-
-CURRENT PROJECT:
+EXISTING PROJECT:
 
 <JARVIS_EXISTING_FILE>
 $existing
 </JARVIS_EXISTING_FILE>
+
+Return the complete updated project inside JARVIS_FILE.
 """.trimIndent()
     }
 
     // ============================================================
-    // PROJECT INFORMATION
+    // PROJECT INFO
     // ============================================================
 
     private fun writeProjectInfo(
@@ -1003,11 +1183,13 @@ created=${System.currentTimeMillis()}
         File(
             project.directory,
             PROJECT_INFO_FILE
-        ).writeText(info)
+        ).writeText(
+            info
+        )
     }
 
     // ============================================================
-    // PROJECT NAMING
+    // PROJECT NAMES
     // ============================================================
 
     fun suggestedProjectName(
@@ -1032,6 +1214,8 @@ created=${System.currentTimeMillis()}
                 "build",
                 "make",
                 "create",
+                "new",
+                "another",
                 "a website",
                 "website",
                 "web site",
