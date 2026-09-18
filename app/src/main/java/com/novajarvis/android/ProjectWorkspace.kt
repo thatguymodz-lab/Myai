@@ -2,10 +2,7 @@ package com.novajarvis.android
 
 import android.content.Context
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
-import java.util.UUID
 
 enum class JarvisProjectType {
     WEBSITE,
@@ -26,44 +23,55 @@ class ProjectWorkspace(
 ) {
 
     companion object {
-        private const val PREFS_NAME = "jarvis_builder"
 
-        private const val CURRENT_PROJECT_ID = "current_project_id"
-        private const val CURRENT_PROJECT_TYPE = "current_project_type"
-        private const val CURRENT_PROJECT_NAME = "current_project_name"
+        private const val PREFS_NAME =
+            "jarvis_builder"
 
-        private const val PREVIEW_PROJECT_ID = "preview_project_id"
-        private const val PREVIEW_PROJECT_TYPE = "preview_project_type"
-        private const val PREVIEW_PROJECT_NAME = "preview_project_name"
+        private const val KEY_CURRENT_PROJECT =
+            "current_project"
 
-        private const val BUILD_IN_PROGRESS = "build_in_progress"
-        private const val BUILD_PROJECT_ID = "build_project_id"
-        private const val BUILD_PROJECT_TYPE = "build_project_type"
-        private const val BUILD_PROJECT_NAME = "build_project_name"
+        private const val KEY_PREVIEW_PROJECT =
+            "preview_project"
 
-        private const val PROJECT_INFO_FILE = "jarvis.project"
-        private const val INDEX_FILE = "index.html"
-        private const val TEMP_INDEX_FILE = "index.html.tmp"
+        private const val KEY_BUILD_INTERRUPTED =
+            "build_interrupted"
+
+        private const val KEY_BUILD_PROJECT =
+            "build_project"
+
+        private const val MAIN_FILE =
+            "index.html"
+
+        private const val META_FILE =
+            "project.meta"
+
+        private const val MAX_BACKUPS =
+            10
+
+        /*
+         * Protect the app from accidentally trying to save an
+         * absurdly large model response.
+         */
+        private const val MAX_HTML_SIZE =
+            1_500_000
     }
 
-    private val prefs by lazy {
+    private val prefs =
         context.getSharedPreferences(
             PREFS_NAME,
             Context.MODE_PRIVATE
         )
-    }
 
-    private val projectsRoot by lazy {
+    private val root =
         File(
             context.filesDir,
             "jarvis_projects"
         ).apply {
             mkdirs()
         }
-    }
 
     // ============================================================
-    // PROJECT TYPE
+    // PROJECT TYPE DETECTION
     // ============================================================
 
     fun detectProjectType(
@@ -71,37 +79,36 @@ class ProjectWorkspace(
     ): JarvisProjectType {
 
         val text =
-            request
-                .lowercase(Locale.getDefault())
-                .trim()
+            request.lowercase(
+                Locale.getDefault()
+            )
 
-        val explicit3D =
+        val wants3D =
             listOf(
                 "3d game",
-                "3-d game",
-                "three dimensional game",
-                "three-dimensional game",
-                "webgl game",
-                "three.js game",
-                "threejs game"
-            )
+                "3d-game",
+                "three.js",
+                "three js",
+                "3d world",
+                "3d project"
+            ).any {
+                text.contains(it)
+            }
 
-        val explicit2D =
+        val wants2D =
             listOf(
                 "2d game",
-                "2-d game",
-                "two dimensional game",
-                "two-dimensional game",
+                "2d-game",
+                "2d project",
                 "canvas game",
                 "platformer",
-                "platform game",
                 "top down game",
-                "top-down game",
-                "side scroller",
-                "side-scroller"
-            )
+                "top-down game"
+            ).any {
+                text.contains(it)
+            }
 
-        val websites =
+        val wantsWebsite =
             listOf(
                 "website",
                 "web site",
@@ -110,67 +117,41 @@ class ProjectWorkspace(
                 "landing page",
                 "portfolio site",
                 "business site"
-            )
-
-        val has3D =
-            explicit3D.any {
+            ).any {
                 text.contains(it)
             }
 
-        val has2D =
-            explicit2D.any {
-                text.contains(it)
-            }
-
-        val hasWebsite =
-            websites.any {
-                text.contains(it)
-            }
-
-        /*
-         * If a prompt contains several project types, don't guess.
-         *
-         * This prevents source-code repair instructions mentioning
-         * WEBSITE + 2D + 3D from accidentally starting a 3D game.
-         */
-        val explicitCount =
+        val matches =
             listOf(
-                has3D,
-                has2D,
-                hasWebsite
+                wants3D,
+                wants2D,
+                wantsWebsite
             ).count {
                 it
             }
 
-        if (explicitCount > 1) {
+        if (matches != 1) {
             return JarvisProjectType.UNKNOWN
         }
 
-        if (has3D) {
-            return JarvisProjectType.GAME_3D
-        }
+        return when {
 
-        if (has2D) {
-            return JarvisProjectType.GAME_2D
-        }
+            wants3D ->
+                JarvisProjectType.GAME_3D
 
-        if (hasWebsite) {
-            return JarvisProjectType.WEBSITE
-        }
+            wants2D ->
+                JarvisProjectType.GAME_2D
 
-        /*
-         * A request that only says "game" is ambiguous.
-         * JARVIS should ask 2D or 3D instead of guessing.
-         */
-        if (text.contains("game")) {
-            return JarvisProjectType.UNKNOWN
-        }
+            wantsWebsite ->
+                JarvisProjectType.WEBSITE
 
-        return JarvisProjectType.UNKNOWN
+            else ->
+                JarvisProjectType.UNKNOWN
+        }
     }
 
     // ============================================================
-    // ROUTING
+    // REQUEST ROUTING
     // ============================================================
 
     fun isNewBuildRequest(
@@ -178,222 +159,208 @@ class ProjectWorkspace(
     ): Boolean {
 
         val text =
-            request
-                .lowercase(Locale.getDefault())
-                .trim()
+            request.lowercase(
+                Locale.getDefault()
+            )
 
         val current =
             getCurrentProject()
 
-        val explicitNew =
+        val explicitType =
+            detectProjectType(request)
+
+        val newWords =
             listOf(
                 "create a new",
-                "create another",
-                "build a new",
-                "build another",
                 "make a new",
-                "make another",
+                "build a new",
                 "start a new",
-                "start another",
                 "new website",
-                "new web site",
-                "new webpage",
-                "new web page",
-                "new landing page",
                 "new 2d game",
                 "new 3d game",
                 "another website",
-                "another web page",
-                "another 2d game",
-                "another 3d game",
-                "separate website",
-                "separate game",
+                "another game",
+                "another project",
                 "separate project"
             )
 
         if (
-            explicitNew.any {
+            newWords.any {
                 text.contains(it)
             }
         ) {
             return true
         }
 
-        val editIndicators =
-            listOf(
-                "current website",
-                "current web site",
-                "current webpage",
-                "current web page",
-                "current game",
-                "current project",
-                "existing website",
-                "existing game",
-                "existing project",
-                "this website",
-                "this game",
-                "this project",
-                "my website",
-                "my game",
-                "my project",
-                "improve",
-                "update",
-                "edit",
-                "modify",
-                "fix",
-                "continue",
-                "upgrade",
-                "change",
-                "add to",
-                "remove from"
-            )
-
+        /*
+         * If there is already a project and the user is clearly
+         * referring to the current project, treat it as an edit.
+         */
         if (
             current != null &&
-            editIndicators.any {
-                text.contains(it)
-            }
+            (
+                text.contains("current") ||
+                text.contains("this project") ||
+                text.contains("my project") ||
+                text.contains("this game") ||
+                text.contains("this website")
+            )
         ) {
             return false
         }
 
-        if (current != null) {
-            return false
+        /*
+         * If no project exists yet, a creation-style request with an
+         * explicit project type is a new build.
+         */
+        if (
+            current == null &&
+            explicitType !=
+                JarvisProjectType.UNKNOWN
+        ) {
+
+            val creationWords =
+                listOf(
+                    "create",
+                    "make",
+                    "build",
+                    "generate",
+                    "design",
+                    "start"
+                )
+
+            if (
+                creationWords.any {
+                    text.contains(it)
+                }
+            ) {
+                return true
+            }
         }
 
-        val creationWords =
-            listOf(
-                "build",
-                "create",
-                "make",
-                "develop",
-                "generate",
-                "start"
-            )
+        /*
+         * If a project exists and the user explicitly asks to build a
+         * DIFFERENT project type, require an obvious creation verb.
+         *
+         * This makes prompts such as:
+         * "build a website"
+         * create a website when the current project is a 2D game.
+         */
+        if (
+            current != null &&
+            explicitType !=
+                JarvisProjectType.UNKNOWN &&
+            explicitType !=
+                current.type
+        ) {
 
-        val projectWords =
-            listOf(
-                "website",
-                "web site",
-                "webpage",
-                "web page",
-                "landing page",
-                "game",
-                "2d",
-                "3d",
-                "three.js",
-                "threejs",
-                "webgl"
-            )
+            val creationWords =
+                listOf(
+                    "create",
+                    "make",
+                    "build",
+                    "generate",
+                    "start"
+                )
 
-        return creationWords.any {
-            text.contains(it)
-        } &&
-            projectWords.any {
-                text.contains(it)
+            if (
+                creationWords.any {
+                    text.contains(it)
+                }
+            ) {
+                return true
             }
+        }
+
+        return false
     }
 
     fun isProjectEditRequest(
         request: String
     ): Boolean {
 
-        if (getCurrentProject() == null) {
+        val current =
+            getCurrentProject()
+                ?: return false
+
+        val text =
+            request.lowercase(
+                Locale.getDefault()
+            )
+
+        if (isNewBuildRequest(request)) {
             return false
         }
 
-        val text =
-            request
-                .lowercase(Locale.getDefault())
-                .trim()
+        val explicitType =
+            detectProjectType(request)
 
-        val explicitNew =
-            listOf(
-                "create a new",
-                "create another",
-                "build a new",
-                "build another",
-                "make a new",
-                "make another",
-                "start a new",
-                "start another",
-                "new website",
-                "new web site",
-                "new webpage",
-                "new web page",
-                "new 2d game",
-                "new 3d game",
-                "another website",
-                "another 2d game",
-                "another 3d game",
-                "separate project"
-            )
-
+        /*
+         * Protect the current project from accidentally being
+         * overwritten with a different project type.
+         */
         if (
-            explicitNew.any {
-                text.contains(it)
-            }
+            explicitType !=
+                JarvisProjectType.UNKNOWN &&
+            explicitType !=
+                current.type
         ) {
             return false
         }
 
         val editWords =
             listOf(
+                "add ",
+                "add a",
+                "add an",
                 "change",
                 "edit",
                 "update",
-                "improve",
-                "fix",
-                "add",
+                "modify",
                 "remove",
-                "continue",
-                "upgrade",
                 "replace",
-                "increase",
-                "decrease",
-                "bigger",
-                "smaller",
-                "faster",
-                "slower",
-                "better",
-                "more",
-                "less",
+                "fix",
+                "improve",
                 "make it",
                 "make the",
-                "make this",
+                "put ",
+                "more ",
+                "less ",
+                "bigger",
+                "smaller",
+                "better",
+                "faster",
+                "slower",
+                "move ",
                 "give it",
-                "put",
-                "move",
-                "resize",
-                "rework",
-                "redesign"
+                "give the",
+                "turn it",
+                "turn the",
+                "background",
+                "player",
+                "enemy",
+                "enemies",
+                "score",
+                "button",
+                "menu",
+                "shop",
+                "level",
+                "levels",
+                "sky",
+                "ground",
+                "controls",
+                "character",
+                "sprite",
+                "graphics"
             )
 
-        if (
-            editWords.any {
-                text.contains(it)
-            }
-        ) {
-            return true
-        }
-
-        return listOf(
-            "current project",
-            "current website",
-            "current game",
-            "this project",
-            "this website",
-            "this game",
-            "my project",
-            "my website",
-            "my game"
-        ).any {
+        return editWords.any {
             text.contains(it)
         }
     }
 
     // ============================================================
-    // CREATE PROJECT
+    // PROJECT CREATION
     // ============================================================
 
     fun createProject(
@@ -402,24 +369,27 @@ class ProjectWorkspace(
     ): JarvisProject {
 
         require(
-            type != JarvisProjectType.UNKNOWN
-        )
+            type !=
+                JarvisProjectType.UNKNOWN
+        ) {
+            "Project type must be known."
+        }
 
         val safeName =
             sanitizeProjectName(
                 requestedName
             )
 
+        val timestamp =
+            System.currentTimeMillis()
+
         val id =
-            UUID
-                .randomUUID()
-                .toString()
-                .take(8)
+            "${safeName}_$timestamp"
 
         val directory =
             File(
-                projectsRoot,
-                "${typeFolder(type)}/${safeName}_$id"
+                root,
+                id
             )
 
         if (
@@ -427,254 +397,238 @@ class ProjectWorkspace(
             !directory.mkdirs()
         ) {
             throw IllegalStateException(
-                "Could not create project directory"
+                "Could not create project directory."
             )
         }
 
-        File(
-            directory,
-            "backups"
-        ).mkdirs()
-
         val project =
             JarvisProject(
-                id = id,
-                name = safeName,
-                type = type,
-                directory = directory
+                id =
+                    id,
+                name =
+                    requestedName
+                        .trim()
+                        .ifBlank {
+                            defaultProjectName(type)
+                        },
+                type =
+                    type,
+                directory =
+                    directory
             )
 
-        writeProjectInfo(
-            project
-        )
+        writeMetadata(project)
 
-        setCurrentProject(
-            project
-        )
+        setCurrentProject(project)
 
         /*
-         * Games have a safe instant foundation.
-         *
-         * Websites intentionally do not get index.html until
-         * generation has completed and validation has passed.
+         * Games receive a deterministic working foundation immediately.
+         * This means a new game does not depend on the small local AI
+         * generating an entire game from scratch.
          */
         when (type) {
 
             JarvisProjectType.GAME_2D -> {
+
                 saveMainFileAtomic(
-                    project = project,
-                    html = create2DGameFoundation(
-                        displayName(
-                            safeName
-                        )
-                    ),
-                    makePreviewable = true
+                    project,
+                    create2DGameFoundation(),
+                    makePreviewable =
+                        true
                 )
             }
 
             JarvisProjectType.GAME_3D -> {
+
                 saveMainFileAtomic(
-                    project = project,
-                    html = create3DGameFoundation(
-                        displayName(
-                            safeName
-                        )
-                    ),
-                    makePreviewable = true
+                    project,
+                    create3DGameFoundation(),
+                    makePreviewable =
+                        true
                 )
             }
 
-            JarvisProjectType.WEBSITE -> Unit
+            JarvisProjectType.WEBSITE -> {
+                /*
+                 * Website generation is performed by MainActivity.
+                 */
+            }
 
-            JarvisProjectType.UNKNOWN -> Unit
+            JarvisProjectType.UNKNOWN -> {
+                /*
+                 * Already rejected above.
+                 */
+            }
         }
 
         return project
     }
 
     // ============================================================
-    // CURRENT PROJECT
+    // CURRENT / PREVIEW PROJECT
     // ============================================================
-
-    fun setCurrentProject(
-        project: JarvisProject
-    ) {
-
-        prefs
-            .edit()
-            .putString(
-                CURRENT_PROJECT_ID,
-                project.id
-            )
-            .putString(
-                CURRENT_PROJECT_TYPE,
-                project.type.name
-            )
-            .putString(
-                CURRENT_PROJECT_NAME,
-                project.name
-            )
-            .apply()
-    }
 
     fun getCurrentProject():
         JarvisProject? {
 
-        return projectFromPreferences(
-            CURRENT_PROJECT_ID,
-            CURRENT_PROJECT_TYPE,
-            CURRENT_PROJECT_NAME
-        )
-    }
-
-    // ============================================================
-    // VERIFIED PREVIEW
-    // ============================================================
-
-    fun setPreviewProject(
-        project: JarvisProject
-    ) {
-
-        val html =
-            readMainFile(
-                project
-            ) ?: return
-
-        if (html.isBlank()) {
-            return
-        }
-
-        val fatal =
-            validateProject(
-                project,
-                html
-            ).any {
-                isFatalValidationProblem(
-                    it
-                )
-            }
-
-        if (fatal) {
-            return
-        }
-
-        prefs
-            .edit()
-            .putString(
-                PREVIEW_PROJECT_ID,
-                project.id
+        val id =
+            prefs.getString(
+                KEY_CURRENT_PROJECT,
+                null
             )
-            .putString(
-                PREVIEW_PROJECT_TYPE,
-                project.type.name
-            )
-            .putString(
-                PREVIEW_PROJECT_NAME,
-                project.name
-            )
-            .apply()
+                ?: return null
+
+        return loadProject(id)
     }
 
     fun getPreviewProject():
         JarvisProject? {
 
+        val id =
+            prefs.getString(
+                KEY_PREVIEW_PROJECT,
+                null
+            )
+                ?: return null
+
         val project =
-            projectFromPreferences(
-                PREVIEW_PROJECT_ID,
-                PREVIEW_PROJECT_TYPE,
-                PREVIEW_PROJECT_NAME
-            ) ?: return null
+            loadProject(id)
+                ?: return null
 
         val html =
-            readMainFile(
-                project
-            ) ?: return null
+            readMainFile(project)
+                ?: return null
 
-        if (html.isBlank()) {
-            return null
-        }
-
-        val fatal =
+        val problems =
             validateProject(
                 project,
                 html
-            ).any {
-                isFatalValidationProblem(
-                    it
+            )
+
+        if (
+            problems.any {
+                isFatalValidationProblem(it)
+            }
+        ) {
+            return null
+        }
+
+        return project
+    }
+
+    private fun setCurrentProject(
+        project: JarvisProject
+    ) {
+
+        /*
+         * commit() is intentional here.
+         * Project switching should survive an unexpected process death.
+         */
+        prefs
+            .edit()
+            .putString(
+                KEY_CURRENT_PROJECT,
+                project.id
+            )
+            .commit()
+    }
+
+    private fun setPreviewProject(
+        project: JarvisProject
+    ) {
+
+        val html =
+            readMainFile(project)
+                ?: throw IllegalStateException(
+                    "Cannot verify an empty project."
                 )
+
+        val problems =
+            validateProject(
+                project,
+                html
+            )
+
+        val fatal =
+            problems.any {
+                isFatalValidationProblem(it)
             }
 
-        return if (fatal) {
-            null
-        } else {
-            project
+        if (fatal) {
+
+            throw IllegalStateException(
+                "Project failed validation: " +
+                    problems.joinToString("; ")
+            )
         }
+
+        prefs
+            .edit()
+            .putString(
+                KEY_PREVIEW_PROJECT,
+                project.id
+            )
+            .commit()
     }
 
     fun markProjectVerified(
         project: JarvisProject
-    ): Boolean {
+    ) {
 
         val html =
-            readMainFile(
-                project
-            ) ?: return false
+            readMainFile(project)
+                ?: throw IllegalStateException(
+                    "Project has no main file."
+                )
 
-        val fatal =
+        val problems =
             validateProject(
                 project,
                 html
-            ).any {
-                isFatalValidationProblem(
-                    it
-                )
-            }
+            )
 
-        if (fatal) {
-            return false
+        if (
+            problems.any {
+                isFatalValidationProblem(it)
+            }
+        ) {
+
+            throw IllegalStateException(
+                "Project cannot be verified: " +
+                    problems.joinToString("; ")
+            )
         }
 
-        setCurrentProject(
-            project
-        )
-
-        setPreviewProject(
-            project
-        )
-
-        return true
+        prefs
+            .edit()
+            .putString(
+                KEY_CURRENT_PROJECT,
+                project.id
+            )
+            .putString(
+                KEY_PREVIEW_PROJECT,
+                project.id
+            )
+            .commit()
     }
 
     // ============================================================
-    // BUILD / CRASH RECOVERY
+    // BUILD INTERRUPTION / RECOVERY
     // ============================================================
 
     fun beginBuild(
         project: JarvisProject
     ) {
 
-        /*
-         * commit() is intentional.
-         *
-         * The marker reaches disk before local AI inference starts.
-         */
         prefs
             .edit()
             .putBoolean(
-                BUILD_IN_PROGRESS,
+                KEY_BUILD_INTERRUPTED,
                 true
             )
             .putString(
-                BUILD_PROJECT_ID,
+                KEY_BUILD_PROJECT,
                 project.id
-            )
-            .putString(
-                BUILD_PROJECT_TYPE,
-                project.type.name
-            )
-            .putString(
-                BUILD_PROJECT_NAME,
-                project.name
             )
             .commit()
     }
@@ -685,19 +639,33 @@ class ProjectWorkspace(
     ) {
 
         if (successful) {
+
+            /*
+             * Verify before clearing the interrupted marker.
+             * If verification unexpectedly fails, recovery remains possible.
+             */
             markProjectVerified(
                 project
             )
         }
 
-        clearInterruptedBuild()
+        prefs
+            .edit()
+            .putBoolean(
+                KEY_BUILD_INTERRUPTED,
+                false
+            )
+            .remove(
+                KEY_BUILD_PROJECT
+            )
+            .commit()
     }
 
     fun wasBuildInterrupted():
         Boolean {
 
         return prefs.getBoolean(
-            BUILD_IN_PROGRESS,
+            KEY_BUILD_INTERRUPTED,
             false
         )
     }
@@ -705,15 +673,14 @@ class ProjectWorkspace(
     fun getInterruptedProject():
         JarvisProject? {
 
-        if (!wasBuildInterrupted()) {
-            return null
-        }
+        val id =
+            prefs.getString(
+                KEY_BUILD_PROJECT,
+                null
+            )
+                ?: return null
 
-        return projectFromPreferences(
-            BUILD_PROJECT_ID,
-            BUILD_PROJECT_TYPE,
-            BUILD_PROJECT_NAME
-        )
+        return loadProject(id)
     }
 
     fun clearInterruptedBuild() {
@@ -721,282 +688,18 @@ class ProjectWorkspace(
         prefs
             .edit()
             .putBoolean(
-                BUILD_IN_PROGRESS,
+                KEY_BUILD_INTERRUPTED,
                 false
             )
             .remove(
-                BUILD_PROJECT_ID
-            )
-            .remove(
-                BUILD_PROJECT_TYPE
-            )
-            .remove(
-                BUILD_PROJECT_NAME
+                KEY_BUILD_PROJECT
             )
             .commit()
     }
 
     // ============================================================
-    // FIND PROJECT
+    // FILE ACCESS
     // ============================================================
-
-    private fun projectFromPreferences(
-        idKey: String,
-        typeKey: String,
-        nameKey: String
-    ): JarvisProject? {
-
-        val id =
-            prefs.getString(
-                idKey,
-                null
-            ) ?: return null
-
-        val typeName =
-            prefs.getString(
-                typeKey,
-                null
-            ) ?: return null
-
-        val name =
-            prefs.getString(
-                nameKey,
-                null
-            ) ?: return null
-
-        val type =
-            try {
-                JarvisProjectType.valueOf(
-                    typeName
-                )
-            } catch (
-                _: Exception
-            ) {
-                return null
-            }
-
-        return findProject(
-            id,
-            type,
-            name
-        )
-    }
-
-    private fun findProject(
-        id: String,
-        type: JarvisProjectType,
-        name: String
-    ): JarvisProject? {
-
-        if (
-            type ==
-            JarvisProjectType.UNKNOWN
-        ) {
-            return null
-        }
-
-        val directory =
-            File(
-                projectsRoot,
-                "${typeFolder(type)}/${name}_$id"
-            )
-
-        if (!directory.exists()) {
-            return null
-        }
-
-        return JarvisProject(
-            id = id,
-            name = name,
-            type = type,
-            directory = directory
-        )
-    }
-
-    private fun typeFolder(
-        type: JarvisProjectType
-    ): String {
-
-        return when (type) {
-
-            JarvisProjectType.WEBSITE ->
-                "websites"
-
-            JarvisProjectType.GAME_2D ->
-                "games_2d"
-
-            JarvisProjectType.GAME_3D ->
-                "games_3d"
-
-            JarvisProjectType.UNKNOWN ->
-                "unknown"
-        }
-    }
-
-    // ============================================================
-    // SAFE FILE SAVING
-    // ============================================================
-
-    fun saveMainFile(
-        project: JarvisProject,
-        html: String
-    ): File {
-
-        return saveMainFileAtomic(
-            project = project,
-            html = html,
-            makePreviewable = true
-        )
-    }
-
-    fun saveMainFileAtomic(
-        project: JarvisProject,
-        html: String,
-        makePreviewable: Boolean
-    ): File {
-
-        require(
-            html.isNotBlank()
-        )
-
-        project.directory.mkdirs()
-
-        val index =
-            File(
-                project.directory,
-                INDEX_FILE
-            )
-
-        val temp =
-            File(
-                project.directory,
-                TEMP_INDEX_FILE
-            )
-
-        backupCurrentVersion(
-            project
-        )
-
-        try {
-
-            temp.writeText(
-                html
-            )
-
-            if (
-                !temp.exists() ||
-                temp.length() <= 0L
-            ) {
-                throw IllegalStateException(
-                    "Temporary project file was not written"
-                )
-            }
-
-            val written =
-                temp.readText()
-
-            val problems =
-                validateProject(
-                    project,
-                    written
-                )
-
-            val fatal =
-                problems.any {
-                    isFatalValidationProblem(
-                        it
-                    )
-                }
-
-            if (fatal) {
-                throw IllegalStateException(
-                    "Project failed validation: ${
-                        problems.joinToString(
-                            "; "
-                        )
-                    }"
-                )
-            }
-
-            /*
-             * Keep another emergency copy of the previous file.
-             */
-            if (index.exists()) {
-
-                try {
-
-                    val old =
-                        File(
-                            project.directory,
-                            "index.html.old"
-                        )
-
-                    if (old.exists()) {
-                        old.delete()
-                    }
-
-                    index.copyTo(
-                        old,
-                        overwrite = true
-                    )
-
-                } catch (
-                    _: Exception
-                ) {
-                    // Backup failure must not destroy a valid new build.
-                }
-            }
-
-            /*
-             * Rename is preferred because it avoids exposing a
-             * partially-written index.html.
-             */
-            if (!temp.renameTo(index)) {
-
-                temp.copyTo(
-                    index,
-                    overwrite = true
-                )
-
-                temp.delete()
-            }
-
-            if (
-                !index.exists() ||
-                index.length() <= 0L
-            ) {
-                throw IllegalStateException(
-                    "Final project file could not be saved"
-                )
-            }
-
-            setCurrentProject(
-                project
-            )
-
-            if (makePreviewable) {
-                setPreviewProject(
-                    project
-                )
-            }
-
-            return index
-
-        } catch (
-            error: Exception
-        ) {
-
-            try {
-                temp.delete()
-            } catch (
-                _: Exception
-            ) {
-                // Ignore cleanup failure.
-            }
-
-            throw error
-        }
-    }
 
     fun readMainFile(
         project: JarvisProject
@@ -1005,225 +708,611 @@ class ProjectWorkspace(
         val file =
             File(
                 project.directory,
-                INDEX_FILE
+                MAIN_FILE
             )
 
-        if (
-            !file.exists() ||
-            file.length() <= 0L
-        ) {
+        if (!file.exists()) {
             return null
         }
 
         return try {
-            file.readText()
+
+            file.readText(
+                Charsets.UTF_8
+            )
+
         } catch (
             _: Exception
         ) {
+
             null
         }
     }
 
-    fun currentMainFile():
-        File? {
-
-        val project =
-            getCurrentProject()
-                ?: return null
-
-        val file =
-            File(
-                project.directory,
-                INDEX_FILE
-            )
-
-        return file.takeIf {
-            it.exists() &&
-            it.length() > 0L
-        }
-    }
-
-    fun previewMainFile():
-        File? {
-
-        val project =
-            getPreviewProject()
-                ?: return null
-
-        val file =
-            File(
-                project.directory,
-                INDEX_FILE
-            )
-
-        return file.takeIf {
-            it.exists() &&
-            it.length() > 0L
-        }
-    }
-
-    private fun backupCurrentVersion(
-        project: JarvisProject
+    fun saveMainFileAtomic(
+        project: JarvisProject,
+        html: String,
+        makePreviewable: Boolean
     ) {
 
-        val current =
-            File(
-                project.directory,
-                INDEX_FILE
-            )
-
-        if (
-            !current.exists() ||
-            current.length() <= 0L
+        require(
+            html.isNotBlank()
         ) {
-            return
+            "Generated project is empty."
         }
 
-        val backupDirectory =
+        /*
+         * Normalize predictable structural mistakes before validation.
+         *
+         * This is NOT an AI repair pass. It only handles deterministic,
+         * safe HTML structure such as the viewport meta tag.
+         */
+        val prepared =
+            prepareGeneratedHtml(
+                project,
+                html
+            )
+
+        require(
+            prepared.isNotBlank()
+        ) {
+            "Generated project is empty after normalization."
+        }
+
+        require(
+            prepared.length <=
+                MAX_HTML_SIZE
+        ) {
+            "Generated project is too large."
+        }
+
+        val target =
             File(
                 project.directory,
-                "backups"
-            ).apply {
-                mkdirs()
-            }
+                MAIN_FILE
+            )
 
-        val stamp =
-            SimpleDateFormat(
-                "yyyyMMdd_HHmmss_SSS",
-                Locale.US
-            ).format(
-                Date()
+        val temp =
+            File(
+                project.directory,
+                "$MAIN_FILE.tmp"
+            )
+
+        val emergencyOld =
+            File(
+                project.directory,
+                "$MAIN_FILE.old"
             )
 
         try {
 
-            current.copyTo(
-                File(
-                    backupDirectory,
-                    "index_$stamp.html"
-                ),
-                overwrite = false
+            temp.delete()
+
+            temp.writeText(
+                prepared,
+                Charsets.UTF_8
             )
 
-            trimOldBackups(
-                backupDirectory
-            )
+            val tempReadback =
+                temp.readText(
+                    Charsets.UTF_8
+                )
 
-        } catch (
-            _: Exception
-        ) {
-            // A failed backup should not crash the app.
-        }
-    }
+            if (
+                tempReadback.isBlank()
+            ) {
 
-    private fun trimOldBackups(
-        directory: File
-    ) {
-
-        directory
-            .listFiles()
-            ?.filter {
-                it.isFile &&
-                it.extension.equals(
-                    "html",
-                    ignoreCase = true
+                throw IllegalStateException(
+                    "Temporary project file is empty."
                 )
             }
-            ?.sortedByDescending {
-                it.lastModified()
+
+            val problems =
+                validateProject(
+                    project,
+                    tempReadback
+                )
+
+            val fatal =
+                problems.any {
+                    isFatalValidationProblem(it)
+                }
+
+            if (fatal) {
+
+                throw IllegalStateException(
+                    problems.joinToString("; ")
+                )
             }
-            ?.drop(
-                10
-            )
-            ?.forEach {
+
+            /*
+             * Only back up the current file AFTER the new temporary
+             * file has passed validation.
+             */
+            if (
+                target.exists() &&
+                target.length() >
+                    0L
+            ) {
+
+                createBackup(
+                    project,
+                    target
+                )
 
                 try {
-                    it.delete()
+
+                    target.copyTo(
+                        emergencyOld,
+                        overwrite =
+                            true
+                    )
+
                 } catch (
                     _: Exception
                 ) {
-                    // Ignore cleanup errors.
+                    /*
+                     * Timestamped backup already exists.
+                     */
                 }
             }
+
+            /*
+             * renameTo is normally atomic when source and destination
+             * are on the same filesystem.
+             */
+            if (target.exists()) {
+                target.delete()
+            }
+
+            val renamed =
+                temp.renameTo(
+                    target
+                )
+
+            if (!renamed) {
+
+                temp.copyTo(
+                    target,
+                    overwrite =
+                        true
+                )
+
+                temp.delete()
+            }
+
+            /*
+             * Read the final destination again.
+             * Never trust only the temporary validation.
+             */
+            val finalHtml =
+                target.readText(
+                    Charsets.UTF_8
+                )
+
+            val finalProblems =
+                validateProject(
+                    project,
+                    finalHtml
+                )
+
+            val finalFatal =
+                finalProblems.any {
+                    isFatalValidationProblem(it)
+                }
+
+            if (finalFatal) {
+
+                /*
+                 * Emergency restore if the final replacement somehow
+                 * became invalid during the filesystem operation.
+                 */
+                if (
+                    emergencyOld.exists() &&
+                    emergencyOld.length() >
+                        0L
+                ) {
+
+                    emergencyOld.copyTo(
+                        target,
+                        overwrite =
+                            true
+                    )
+                }
+
+                throw IllegalStateException(
+                    "Final saved project failed validation: " +
+                        finalProblems.joinToString("; ")
+                )
+            }
+
+            setCurrentProject(
+                project
+            )
+
+            if (makePreviewable) {
+
+                setPreviewProject(
+                    project
+                )
+            }
+
+            emergencyOld.delete()
+
+            cleanOldBackups(
+                project
+            )
+
+        } catch (
+            e: Exception
+        ) {
+
+            temp.delete()
+
+            /*
+             * If the target vanished during replacement but an
+             * emergency copy exists, restore it.
+             */
+            if (
+                !target.exists() &&
+                emergencyOld.exists()
+            ) {
+
+                try {
+
+                    emergencyOld.copyTo(
+                        target,
+                        overwrite =
+                            true
+                    )
+
+                } catch (
+                    _: Exception
+                ) {
+                }
+            }
+
+            throw e
+        }
     }
 
     // ============================================================
-    // AI OUTPUT EXTRACTION
+    // GENERATED HTML NORMALIZATION
+    // ============================================================
+
+    private fun prepareGeneratedHtml(
+        project: JarvisProject,
+        source: String
+    ): String {
+
+        var html =
+            trimToHtmlDocument(
+                source
+            )
+                .trim()
+
+        if (html.isBlank()) {
+            return html
+        }
+
+        /*
+         * Exact fix for the failure:
+         *
+         * "Website is missing a mobile viewport."
+         *
+         * A viewport tag is deterministic HTML boilerplate. There is no
+         * reason to run another LLM generation just to add it.
+         */
+        if (
+            project.type ==
+                JarvisProjectType.WEBSITE &&
+            !hasViewportMeta(html)
+        ) {
+
+            html =
+                injectViewportMeta(
+                    html
+                )
+        }
+
+        return html.trim()
+    }
+
+    private fun hasViewportMeta(
+        html: String
+    ): Boolean {
+
+        val viewportRegex =
+            Regex(
+                """<meta\b[^>]*\bname\s*=\s*["']?viewport["']?[^>]*>""",
+                setOf(
+                    RegexOption.IGNORE_CASE,
+                    RegexOption.DOT_MATCHES_ALL
+                )
+            )
+
+        return viewportRegex.containsMatchIn(
+            html
+        )
+    }
+
+    private fun injectViewportMeta(
+        html: String
+    ): String {
+
+        if (hasViewportMeta(html)) {
+            return html
+        }
+
+        val viewport =
+            """<meta name="viewport" content="width=device-width, initial-scale=1.0">"""
+
+        val headRegex =
+            Regex(
+                """<head\b[^>]*>""",
+                RegexOption.IGNORE_CASE
+            )
+
+        val headMatch =
+            headRegex.find(html)
+
+        if (headMatch != null) {
+
+            val position =
+                headMatch.range.last + 1
+
+            return buildString(
+                html.length +
+                    viewport.length +
+                    2
+            ) {
+
+                append(
+                    html.substring(
+                        0,
+                        position
+                    )
+                )
+
+                append('\n')
+                append(viewport)
+                append('\n')
+
+                append(
+                    html.substring(
+                        position
+                    )
+                )
+            }
+        }
+
+        /*
+         * If <html> exists but <head> does not, insert a minimal head.
+         */
+        val htmlRegex =
+            Regex(
+                """<html\b[^>]*>""",
+                RegexOption.IGNORE_CASE
+            )
+
+        val htmlMatch =
+            htmlRegex.find(html)
+
+        if (htmlMatch != null) {
+
+            val position =
+                htmlMatch.range.last + 1
+
+            val head =
+                """
+<head>
+$viewport
+</head>
+""".trimIndent()
+
+            return buildString(
+                html.length +
+                    head.length +
+                    2
+            ) {
+
+                append(
+                    html.substring(
+                        0,
+                        position
+                    )
+                )
+
+                append('\n')
+                append(head)
+                append('\n')
+
+                append(
+                    html.substring(
+                        position
+                    )
+                )
+            }
+        }
+
+        /*
+         * Leave malformed non-document output alone.
+         * Validation will reject it instead of trying to guess.
+         */
+        return html
+    }
+
+    // ============================================================
+    // MODEL OUTPUT EXTRACTION
     // ============================================================
 
     fun extractGeneratedHtml(
-        output: String
+        rawOutput: String
     ): String? {
 
-        if (output.isBlank()) {
+        if (rawOutput.isBlank()) {
             return null
         }
 
+        var candidate =
+            rawOutput.trim()
+
+        /*
+         * Preferred JARVIS format.
+         */
         val tagged =
             Regex(
-                "(?s)<JARVIS_FILE>\\s*(.*?)\\s*</JARVIS_FILE>",
-                RegexOption.IGNORE_CASE
+                """(?is)<JARVIS_FILE>\s*(.*?)\s*</JARVIS_FILE>"""
             )
-                .find(
-                    output
-                )
+                .find(candidate)
                 ?.groupValues
-                ?.getOrNull(
-                    1
-                )
+                ?.getOrNull(1)
                 ?.trim()
 
         if (!tagged.isNullOrBlank()) {
-            return tagged
+
+            candidate =
+                tagged
         }
 
-        val fenced =
+        /*
+         * Also accept normal markdown code fences because small models
+         * sometimes ignore the exact output wrapper.
+         */
+        if (
+            candidate.contains(
+                "```"
+            )
+        ) {
+
+            val fenced =
+                Regex(
+                    """(?is)```(?:html)?\s*(.*?)\s*```"""
+                )
+                    .find(candidate)
+                    ?.groupValues
+                    ?.getOrNull(1)
+                    ?.trim()
+
+            if (!fenced.isNullOrBlank()) {
+
+                candidate =
+                    fenced
+            }
+        }
+
+        candidate =
+            trimToHtmlDocument(
+                candidate
+            )
+
+        if (candidate.isBlank()) {
+            return null
+        }
+
+        /*
+         * Do not accept plain conversation as HTML.
+         */
+        if (
+            !candidate.contains(
+                "<html",
+                ignoreCase =
+                    true
+            ) &&
+            !candidate.contains(
+                "<!doctype",
+                ignoreCase =
+                    true
+            )
+        ) {
+            return null
+        }
+
+        return candidate.trim()
+    }
+
+    private fun trimToHtmlDocument(
+        source: String
+    ): String {
+
+        var value =
+            source.trim()
+
+        if (value.isBlank()) {
+            return value
+        }
+
+        /*
+         * Remove anything the model says before the actual document.
+         */
+        val doctypeIndex =
+            value.indexOf(
+                "<!doctype",
+                ignoreCase =
+                    true
+            )
+
+        val htmlIndex =
+            value.indexOf(
+                "<html",
+                ignoreCase =
+                    true
+            )
+
+        val start =
+            when {
+
+                doctypeIndex >= 0 &&
+                    htmlIndex >= 0 ->
+                    minOf(
+                        doctypeIndex,
+                        htmlIndex
+                    )
+
+                doctypeIndex >= 0 ->
+                    doctypeIndex
+
+                htmlIndex >= 0 ->
+                    htmlIndex
+
+                else ->
+                    0
+            }
+
+        if (start > 0) {
+
+            value =
+                value.substring(start)
+        }
+
+        /*
+         * Most important extraction fix:
+         * stop at the FIRST complete </html>.
+         *
+         * Small models often output:
+         *
+         * </html>
+         * "Here is your finished website..."
+         *
+         * That chatter must never become part of index.html.
+         */
+        val closing =
             Regex(
-                "(?s)```(?:html)?\\s*(.*?)\\s*```",
+                """</html\s*>""",
                 RegexOption.IGNORE_CASE
             )
-                .find(
-                    output
-                )
-                ?.groupValues
-                ?.getOrNull(
-                    1
-                )
-                ?.trim()
+                .find(value)
 
-        if (!fenced.isNullOrBlank()) {
-            return fenced
+        if (closing != null) {
+
+            value =
+                value.substring(
+                    0,
+                    closing.range.last + 1
+                )
         }
 
-        val doctype =
-            output.indexOf(
-                "<!doctype",
-                ignoreCase = true
-            )
-
-        if (doctype >= 0) {
-            return output
-                .substring(
-                    doctype
-                )
-                .trim()
-        }
-
-        val html =
-            output.indexOf(
-                "<html",
-                ignoreCase = true
-            )
-
-        if (html >= 0) {
-            return output
-                .substring(
-                    html
-                )
-                .trim()
-        }
-
-        return null
+        return value.trim()
     }
 
     // ============================================================
@@ -1238,126 +1327,168 @@ class ProjectWorkspace(
         val problems =
             mutableListOf<String>()
 
-        val lower =
-            html.lowercase(
-                Locale.getDefault()
-            )
+        if (html.isBlank()) {
+
+            problems +=
+                "Project output is empty"
+
+            return problems
+        }
 
         if (
-            !lower.contains("<html") &&
-            !lower.contains("<!doctype")
+            html.length >
+                MAX_HTML_SIZE
         ) {
-            problems.add(
-                "Missing HTML document structure."
-            )
+
+            problems +=
+                "Project output is too large"
         }
 
-        if (!lower.contains("<body")) {
-            problems.add(
-                "Missing BODY element."
+        if (
+            !html.contains(
+                "<html",
+                ignoreCase =
+                    true
             )
+        ) {
+
+            problems +=
+                "Project is missing <html>"
         }
 
-        /*
-         * Important:
-         * truncated AI output commonly contains <body>
-         * but never reaches </body>.
-         */
-        if (!lower.contains("</body>")) {
-            problems.add(
-                "Missing closing BODY element."
+        if (
+            !html.contains(
+                "</html>",
+                ignoreCase =
+                    true
             )
+        ) {
+
+            problems +=
+                "Project is missing </html>"
         }
 
-        if (!lower.contains("</html>")) {
-            problems.add(
-                "Missing closing HTML element."
+        if (
+            !html.contains(
+                "<body",
+                ignoreCase =
+                    true
             )
+        ) {
+
+            problems +=
+                "Project is missing <body>"
+        }
+
+        if (
+            !html.contains(
+                "</body>",
+                ignoreCase =
+                    true
+            )
+        ) {
+
+            problems +=
+                "Project is missing </body>"
         }
 
         when (project.type) {
 
             JarvisProjectType.WEBSITE -> {
 
-                val viewport =
-                    Regex(
-                        """<meta\s+[^>]*name\s*=\s*["']viewport["'][^>]*>""",
-                        RegexOption.IGNORE_CASE
-                    )
+                if (!hasViewportMeta(html)) {
 
-                if (
-                    !viewport.containsMatchIn(
-                        html
-                    )
-                ) {
-                    problems.add(
-                        "Website is missing a mobile viewport."
-                    )
+                    problems +=
+                        "Website is missing a mobile viewport"
                 }
             }
 
             JarvisProjectType.GAME_2D -> {
 
-                if (!lower.contains("<canvas")) {
-                    problems.add(
-                        "2D game has no Canvas."
+                if (
+                    !html.contains(
+                        "<canvas",
+                        ignoreCase =
+                            true
                     )
-                }
+                ) {
 
-                if (!lower.contains("<script")) {
-                    problems.add(
-                        "2D game has no game script."
-                    )
+                    problems +=
+                        "2D game is missing its canvas"
                 }
 
                 if (
-                    !lower.contains(
-                        "requestanimationframe"
+                    !html.contains(
+                        "<script",
+                        ignoreCase =
+                            true
                     )
                 ) {
-                    problems.add(
-                        "2D game has no animation/game loop."
+
+                    problems +=
+                        "2D game is missing JavaScript"
+                }
+
+                if (
+                    !html.contains(
+                        "requestAnimationFrame",
+                        ignoreCase =
+                            true
                     )
+                ) {
+
+                    problems +=
+                        "2D game is missing its animation loop"
                 }
             }
 
             JarvisProjectType.GAME_3D -> {
 
                 val hasThree =
-                    lower.contains(
-                        "three.module"
+                    html.contains(
+                        "three.module",
+                        ignoreCase =
+                            true
                     ) ||
-                    lower.contains(
-                        "three.min"
+                    html.contains(
+                        "from 'three'",
+                        ignoreCase =
+                            true
                     ) ||
-                    lower.contains(
-                        "from 'three'"
+                    html.contains(
+                        "from \"three\"",
+                        ignoreCase =
+                            true
                     ) ||
-                    lower.contains(
-                        "from \"three\""
+                    html.contains(
+                        "THREE.",
+                        ignoreCase =
+                            false
                     )
 
                 if (!hasThree) {
-                    problems.add(
-                        "3D game has no Three.js engine."
-                    )
+
+                    problems +=
+                        "3D game is missing Three.js"
                 }
 
                 if (
-                    !lower.contains(
-                        "requestanimationframe"
+                    !html.contains(
+                        "requestAnimationFrame",
+                        ignoreCase =
+                            true
                     )
                 ) {
-                    problems.add(
-                        "3D game has no animation/game loop."
-                    )
+
+                    problems +=
+                        "3D game is missing its animation loop"
                 }
             }
 
             JarvisProjectType.UNKNOWN -> {
-                problems.add(
-                    "Project type is unknown."
-                )
+
+                problems +=
+                    "Project type is unknown"
             }
         }
 
@@ -1368,50 +1499,18 @@ class ProjectWorkspace(
         problem: String
     ): Boolean {
 
-        return problem.contains(
-            "Missing HTML",
-            ignoreCase = true
-        ) ||
-            problem.contains(
-                "Missing BODY",
-                ignoreCase = true
-            ) ||
-            problem.contains(
-                "Missing closing BODY",
-                ignoreCase = true
-            ) ||
-            problem.contains(
-                "Missing closing HTML",
-                ignoreCase = true
-            ) ||
-            problem.contains(
-                "mobile viewport",
-                ignoreCase = true
-            ) ||
-            problem.contains(
-                "no Canvas",
-                ignoreCase = true
-            ) ||
-            problem.contains(
-                "no game script",
-                ignoreCase = true
-            ) ||
-            problem.contains(
-                "no animation/game loop",
-                ignoreCase = true
-            ) ||
-            problem.contains(
-                "no Three.js",
-                ignoreCase = true
-            ) ||
-            problem.contains(
-                "type is unknown",
-                ignoreCase = true
-            )
+        /*
+         * At the moment every validator result represents something
+         * that would make Preview unreliable.
+         *
+         * Keeping this function separate lets us add warnings later
+         * without changing MainActivity.
+         */
+        return problem.isNotBlank()
     }
 
     // ============================================================
-    // BUILDER SYSTEM PROMPT
+    // BUILDER PROMPTS
     // ============================================================
 
     fun builderSystemPrompt(
@@ -1420,193 +1519,133 @@ class ProjectWorkspace(
 
         return when (type) {
 
-            JarvisProjectType.WEBSITE -> """
-You are JARVIS BUILDER.
-Return exactly one complete compact runnable index.html inside <JARVIS_FILE>...</JARVIS_FILE>.
-No markdown, explanations, TODOs, placeholders or omitted code.
-Build the minimum complete working page first.
-Only add optional visual detail if output space remains.
-Use concise mobile-friendly HTML and CSS.
-Use minimal JavaScript only when necessary.
-Do not use frameworks, large SVGs, base64 assets or unnecessary external assets.
-Include a mobile viewport.
-Always finish the complete document with </body> and </html>.
+            JarvisProjectType.WEBSITE ->
+
+                """
+You are JARVIS Builder running on Android.
+Return one COMPLETE compact index.html only.
+Wrap the file in <JARVIS_FILE> and </JARVIS_FILE>.
+Always include:
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+...
+</body>
+</html>
+Do not explain the code.
+Do not use markdown unless unavoidable.
+Use inline CSS and JavaScript.
+Keep output small.
+No base64 assets.
+No huge SVG.
+No frameworks.
+Make it responsive and mobile friendly.
+Never stop before </body> and </html>.
 """.trimIndent()
 
-            JarvisProjectType.GAME_2D -> """
-You are JARVIS BUILDER.
-PROJECT TYPE: 2D GAME.
-Return one complete compact index.html inside <JARVIS_FILE>...</JARVIS_FILE>.
-Preserve the existing Canvas, requestAnimationFrame loop, touch controls, keyboard controls and restart handling.
-Modify the existing working foundation instead of rebuilding it.
-Preserve working features.
-No markdown or explanations.
-Always include </body> and </html>.
+            JarvisProjectType.GAME_2D ->
+
+                """
+You are JARVIS 2D Game Builder.
+Modify the supplied working game while preserving its playable foundation.
+Return one COMPLETE index.html inside <JARVIS_FILE> tags.
+Keep the canvas.
+Keep requestAnimationFrame.
+Keep touch controls.
+Keep keyboard controls.
+Keep code compact.
+No frameworks.
+No base64.
+No explanation.
+Always finish </body> and </html>.
 """.trimIndent()
 
-            JarvisProjectType.GAME_3D -> """
-You are JARVIS BUILDER.
-PROJECT TYPE: 3D GAME.
-Return one complete compact index.html inside <JARVIS_FILE>...</JARVIS_FILE>.
-Preserve Three.js, scene, camera, renderer, lighting, requestAnimationFrame, resize handling and touch controls.
-Modify the existing working foundation instead of rebuilding it.
-Preserve working features.
-No markdown or explanations.
-Always include </body> and </html>.
+            JarvisProjectType.GAME_3D ->
+
+                """
+You are JARVIS 3D Game Builder.
+Modify the supplied working Three.js game while preserving its playable foundation.
+Return one COMPLETE index.html inside <JARVIS_FILE> tags.
+Keep Three.js.
+Keep the renderer, scene, camera and animation loop.
+Keep mobile touch controls.
+Keep code compact.
+No base64.
+No explanation.
+Always finish </body> and </html>.
 """.trimIndent()
 
-            JarvisProjectType.UNKNOWN -> """
-You are JARVIS BUILDER.
-The project type is unknown.
-Ask whether the user wants a WEBSITE, 2D GAME or 3D GAME.
+            JarvisProjectType.UNKNOWN ->
+
+                """
+You are JARVIS Builder.
+Return one complete compact HTML project.
+Do not explain the output.
 """.trimIndent()
         }
     }
-
-    // ============================================================
-    // EDIT PROMPT
-    // ============================================================
 
     fun createEditPrompt(
         project: JarvisProject,
         userRequest: String
     ): String {
 
-        val existing =
-            readMainFile(
-                project
-            )
-                ?: when (project.type) {
+        val current =
+            readMainFile(project)
+                ?: workingFallback(
+                    project.type
+                )
 
-                    JarvisProjectType.GAME_2D ->
-                        create2DGameFoundation(
-                            displayName(
-                                project.name
-                            )
-                        )
-
-                    JarvisProjectType.GAME_3D ->
-                        create3DGameFoundation(
-                            displayName(
-                                project.name
-                            )
-                        )
-
-                    else ->
-                        ""
-                }
-
+        /*
+         * The local 0.5B model has a limited context window.
+         * Keep instructions short and let the existing working project
+         * provide most of the context.
+         */
         return """
-EDIT CURRENT ${project.type.name} PROJECT: ${project.name}
-REQUEST: $userRequest
-Preserve working features and project type.
-Return the complete compact index.html, including </body></html>.
-<JARVIS_EXISTING_FILE>
-$existing
-</JARVIS_EXISTING_FILE>
+EDIT REQUEST:
+$userRequest
+
+PROJECT TYPE:
+${projectTypeName(project.type)}
+
+RULES:
+Keep the existing project working.
+Preserve controls and required foundation code.
+Make only the requested changes.
+Return the complete replacement index.html.
+Return only <JARVIS_FILE>...</JARVIS_FILE>.
+Finish </body> and </html>.
+
+CURRENT INDEX.HTML:
+$current
 """.trimIndent()
     }
-
-    // ============================================================
-    // INITIAL GAME PROMPT
-    // ============================================================
 
     fun createInitialGamePrompt(
         project: JarvisProject,
-        userRequest: String
+        request: String
     ): String {
 
-        val foundation =
-            when (project.type) {
-
-                JarvisProjectType.GAME_2D ->
-                    create2DGameFoundation(
-                        displayName(
-                            project.name
-                        )
-                    )
-
-                JarvisProjectType.GAME_3D ->
-                    create3DGameFoundation(
-                        displayName(
-                            project.name
-                        )
-                    )
-
-                else ->
-                    ""
-            }
-
         return """
-BUILD ${project.type.name}:
-$userRequest
+Project: ${project.name}
+Type: ${projectTypeName(project.type)}
+Request: $request
 
-Modify this working foundation.
-Preserve the engine, controls and animation loop.
-Return one complete compact index.html.
-
-<JARVIS_EXISTING_FILE>
-$foundation
-</JARVIS_EXISTING_FILE>
+Use the working foundation.
+Keep the result compact and playable.
 """.trimIndent()
     }
 
-    // ============================================================
-    // FALLBACK
-    // ============================================================
-
-    fun workingFallback(
-        project: JarvisProject
-    ): String? {
-
-        val existing =
-            readMainFile(
-                project
-            )
-
-        if (existing != null) {
-
-            val fatal =
-                validateProject(
-                    project,
-                    existing
-                ).any {
-                    isFatalValidationProblem(
-                        it
-                    )
-                }
-
-            if (!fatal) {
-                return existing
-            }
-        }
-
-        return when (project.type) {
-
-            JarvisProjectType.GAME_2D ->
-                create2DGameFoundation(
-                    displayName(
-                        project.name
-                    )
-                )
-
-            JarvisProjectType.GAME_3D ->
-                create3DGameFoundation(
-                    displayName(
-                        project.name
-                    )
-                )
-
-            else ->
-                null
-        }
-    }
-
     /*
-     * Kept for compatibility with any existing caller.
+     * Kept for future manual repair tools.
      *
-     * MainActivity should NOT perform a second expensive LLM pass
-     * automatically after a failed generation.
+     * MainActivity intentionally does NOT automatically run another
+     * model pass when validation fails. Automatic second generations
+     * increase memory pressure and were one of the behaviours we wanted
+     * to avoid on the phone.
      */
     fun createRepairPrompt(
         project: JarvisProject,
@@ -1615,18 +1654,90 @@ $foundation
     ): String {
 
         return """
-Repair this ${project.type.name} project.
+Repair this ${projectTypeName(project.type)}.
 
-ERRORS:
-${problems.joinToString("; ")}
+Problems:
+${problems.joinToString("\n")}
 
-Return ONE complete compact index.html.
-Finish the document with </body> and </html>.
-No explanation.
+Return one COMPLETE replacement index.html.
+Keep it compact.
+Return only <JARVIS_FILE>...</JARVIS_FILE>.
 
-<JARVIS_BROKEN_FILE>
+BROKEN FILE:
 $brokenHtml
-</JARVIS_BROKEN_FILE>
+""".trimIndent()
+    }
+
+    private fun workingFallback(
+        type: JarvisProjectType
+    ): String {
+
+        return when (type) {
+
+            JarvisProjectType.GAME_2D ->
+                create2DGameFoundation()
+
+            JarvisProjectType.GAME_3D ->
+                create3DGameFoundation()
+
+            JarvisProjectType.WEBSITE ->
+                createWebsiteFoundation()
+
+            JarvisProjectType.UNKNOWN ->
+                createWebsiteFoundation()
+        }
+    }
+
+    // ============================================================
+    // WEBSITE FOUNDATION
+    // ============================================================
+
+    private fun createWebsiteFoundation():
+        String {
+
+        return """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jarvis Website</title>
+<style>
+*{box-sizing:border-box}
+body{
+margin:0;
+font-family:Arial,sans-serif;
+background:#07111c;
+color:#eefaff;
+min-height:100vh;
+display:grid;
+place-items:center;
+padding:24px
+}
+main{
+width:min(760px,100%);
+background:#0d1d2b;
+padding:28px;
+border-radius:18px
+}
+h1{margin-top:0}
+button{
+border:0;
+border-radius:12px;
+padding:12px 18px;
+font-weight:bold;
+cursor:pointer
+}
+</style>
+</head>
+<body>
+<main>
+<h1>Jarvis Website</h1>
+<p>Your website is ready to edit.</p>
+<button onclick="alert('JARVIS ready')">Test</button>
+</main>
+</body>
+</html>
 """.trimIndent()
     }
 
@@ -1634,14 +1745,8 @@ $brokenHtml
     // 2D GAME FOUNDATION
     // ============================================================
 
-    fun create2DGameFoundation(
-        title: String = "Jarvis 2D Game"
-    ): String {
-
-        val safeTitle =
-            escapeHtml(
-                title
-            )
+    private fun create2DGameFoundation():
+        String {
 
         return """
 <!DOCTYPE html>
@@ -1649,565 +1754,249 @@ $brokenHtml
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>$safeTitle</title>
-
+<title>Jarvis 2D Game</title>
 <style>
 *{box-sizing:border-box}
 html,body{
- margin:0;
- background:#050b12;
- color:#fff;
- font-family:Arial,sans-serif;
- overscroll-behavior:none
+margin:0;
+width:100%;
+height:100%;
+overflow:hidden;
+background:#07111c;
+font-family:Arial,sans-serif;
+touch-action:none;
+user-select:none
 }
-body{
- min-height:100vh;
- display:flex;
- justify-content:center;
- padding:12px;
- touch-action:manipulation
+#game{
+display:block;
+width:100vw;
+height:100vh;
+background:linear-gradient(#12324b,#07111c)
 }
-#shell{
- width:min(100%,760px)
-}
-#top{
- display:flex;
- justify-content:space-between;
- align-items:center;
- margin-bottom:8px
-}
-#wrap{
- position:relative;
- background:#081521;
- border:1px solid #1f5168;
- border-radius:14px;
- overflow:hidden
-}
-canvas{
- display:block;
- width:100%;
- height:auto;
- aspect-ratio:16/10;
- background:#071019;
- touch-action:none
-}
-#message{
- position:absolute;
- left:10px;
- right:10px;
- top:10px;
- text-align:center;
- font-weight:700;
- pointer-events:none
+#hud{
+position:fixed;
+top:12px;
+left:12px;
+z-index:5;
+color:white;
+background:#0008;
+padding:9px 12px;
+border-radius:12px;
+font-weight:bold;
+pointer-events:none
 }
 #controls{
- display:grid;
- grid-template-columns:repeat(3,1fr);
- gap:8px;
- margin-top:10px
+position:fixed;
+left:14px;
+right:14px;
+bottom:18px;
+z-index:6;
+display:flex;
+justify-content:space-between;
+pointer-events:none
 }
-button{
- min-height:52px;
- border:1px solid #39d9ff;
- border-radius:12px;
- background:#0b1c29;
- color:#fff;
- font-size:18px;
- font-weight:800
+.pad{
+display:flex;
+gap:8px;
+pointer-events:auto
 }
-#restart{
- width:100%;
- margin-top:8px
+.ctrl{
+width:64px;
+height:64px;
+border:0;
+border-radius:50%;
+font-size:26px;
+font-weight:bold;
+background:#ffffffd9;
+color:#07111c
 }
 </style>
 </head>
-
 <body>
 
-<div id="shell">
-
-<div id="top">
-<b>$safeTitle</b>
-<div>Score: <span id="score">0</span></div>
-</div>
-
-<div id="wrap">
-<canvas id="game" width="800" height="500"></canvas>
-<div id="message">Collect the yellow coins</div>
-</div>
+<canvas id="game"></canvas>
+<div id="hud">Score: <span id="score">0</span></div>
 
 <div id="controls">
-<button id="left">◀</button>
-<button id="up">▲</button>
-<button id="right">▶</button>
-
-<button id="down">▼</button>
-<button id="action">ACTION</button>
-<button id="pause">PAUSE</button>
+<div class="pad">
+<button class="ctrl" id="left">◀</button>
+<button class="ctrl" id="right">▶</button>
 </div>
-
-<button id="restart">RESTART</button>
-
+<div class="pad">
+<button class="ctrl" id="up">▲</button>
+<button class="ctrl" id="down">▼</button>
+</div>
 </div>
 
 <script>
-const canvas =
- document.getElementById('game');
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+const scoreEl=document.getElementById("score");
 
-const ctx =
- canvas.getContext('2d');
+let W=0,H=0,score=0;
 
-const scoreEl =
- document.getElementById('score');
-
-const messageEl =
- document.getElementById('message');
-
-const keys = {
- left:false,
- right:false,
- up:false,
- down:false
+const keys={
+left:false,
+right:false,
+up:false,
+down:false
 };
 
-let score = 0;
-let paused = false;
-let last = performance.now();
-
-const player = {
- x:100,
- y:250,
- r:20,
- speed:260
+const player={
+x:120,
+y:120,
+r:18,
+speed:260
 };
 
-const coin = {
- x:500,
- y:250,
- r:13
+const coin={
+x:300,
+y:220,
+r:12
 };
+
+function resize(){
+const dpr=Math.min(window.devicePixelRatio||1,2);
+W=window.innerWidth;
+H=window.innerHeight;
+canvas.width=Math.floor(W*dpr);
+canvas.height=Math.floor(H*dpr);
+canvas.style.width=W+"px";
+canvas.style.height=H+"px";
+ctx.setTransform(dpr,0,0,dpr,0,0);
+
+player.x=Math.max(player.r,Math.min(W-player.r,player.x));
+player.y=Math.max(player.r,Math.min(H-player.r,player.y));
+}
+
+window.addEventListener("resize",resize);
+resize();
 
 function randomCoin(){
-
- coin.x =
-  coin.r +
-  Math.random() *
-  (canvas.width - coin.r * 2);
-
- coin.y =
-  coin.r +
-  Math.random() *
-  (canvas.height - coin.r * 2);
+coin.x=40+Math.random()*Math.max(40,W-80);
+coin.y=70+Math.random()*Math.max(40,H-140);
 }
 
-function resetGame(){
+function bindButton(id,key){
+const el=document.getElementById(id);
 
- score = 0;
+const on=e=>{
+e.preventDefault();
+keys[key]=true;
+};
 
- scoreEl.textContent =
-  '0';
+const off=e=>{
+e.preventDefault();
+keys[key]=false;
+};
 
- player.x = 100;
- player.y = 250;
-
- paused = false;
-
- messageEl.textContent =
-  'Collect the yellow coins';
-
- randomCoin();
+el.addEventListener("pointerdown",on);
+el.addEventListener("pointerup",off);
+el.addEventListener("pointercancel",off);
+el.addEventListener("pointerleave",off);
 }
+
+bindButton("left","left");
+bindButton("right","right");
+bindButton("up","up");
+bindButton("down","down");
+
+window.addEventListener("keydown",e=>{
+if(e.key==="ArrowLeft"||e.key==="a")keys.left=true;
+if(e.key==="ArrowRight"||e.key==="d")keys.right=true;
+if(e.key==="ArrowUp"||e.key==="w")keys.up=true;
+if(e.key==="ArrowDown"||e.key==="s")keys.down=true;
+});
+
+window.addEventListener("keyup",e=>{
+if(e.key==="ArrowLeft"||e.key==="a")keys.left=false;
+if(e.key==="ArrowRight"||e.key==="d")keys.right=false;
+if(e.key==="ArrowUp"||e.key==="w")keys.up=false;
+if(e.key==="ArrowDown"||e.key==="s")keys.down=false;
+});
+
+let last=performance.now();
 
 function update(dt){
+let dx=(keys.right?1:0)-(keys.left?1:0);
+let dy=(keys.down?1:0)-(keys.up?1:0);
 
- if(paused){
-  return;
- }
+if(dx||dy){
+const len=Math.hypot(dx,dy)||1;
+dx/=len;
+dy/=len;
+player.x+=dx*player.speed*dt;
+player.y+=dy*player.speed*dt;
+}
 
- let dx = 0;
- let dy = 0;
+player.x=Math.max(player.r,Math.min(W-player.r,player.x));
+player.y=Math.max(player.r,Math.min(H-player.r,player.y));
 
- if(keys.left){
-  dx--;
- }
-
- if(keys.right){
-  dx++;
- }
-
- if(keys.up){
-  dy--;
- }
-
- if(keys.down){
-  dy++;
- }
-
- if(dx || dy){
-
-  const length =
-   Math.hypot(
-    dx,
-    dy
-   ) || 1;
-
-  player.x +=
-   dx /
-   length *
-   player.speed *
-   dt;
-
-  player.y +=
-   dy /
-   length *
-   player.speed *
-   dt;
- }
-
- player.x =
-  Math.max(
-   player.r,
-   Math.min(
-    canvas.width -
-    player.r,
-    player.x
-   )
-  );
-
- player.y =
-  Math.max(
-   player.r,
-   Math.min(
-    canvas.height -
-    player.r,
-    player.y
-   )
-  );
-
- if(
-  Math.hypot(
-   player.x - coin.x,
-   player.y - coin.y
-  ) <
-  player.r + coin.r
- ){
-
-  score++;
-
-  scoreEl.textContent =
-   String(score);
-
-  messageEl.textContent =
-   'Nice! Score ' + score;
-
-  randomCoin();
- }
+if(
+Math.hypot(
+player.x-coin.x,
+player.y-coin.y
+)<player.r+coin.r
+){
+score++;
+scoreEl.textContent=score;
+randomCoin();
+}
 }
 
 function draw(){
+ctx.clearRect(0,0,W,H);
 
- ctx.fillStyle =
-  '#07131d';
+ctx.fillStyle="#12324b";
+ctx.fillRect(0,0,W,H);
 
- ctx.fillRect(
-  0,
-  0,
-  canvas.width,
-  canvas.height
- );
+ctx.strokeStyle="#ffffff12";
+ctx.lineWidth=1;
 
- ctx.strokeStyle =
-  '#12384d';
-
- for(
-  let x = 0;
-  x < canvas.width;
-  x += 50
- ){
-
-  ctx.beginPath();
-
-  ctx.moveTo(
-   x,
-   0
-  );
-
-  ctx.lineTo(
-   x,
-   canvas.height
-  );
-
-  ctx.stroke();
- }
-
- for(
-  let y = 0;
-  y < canvas.height;
-  y += 50
- ){
-
-  ctx.beginPath();
-
-  ctx.moveTo(
-   0,
-   y
-  );
-
-  ctx.lineTo(
-   canvas.width,
-   y
-  );
-
-  ctx.stroke();
- }
-
- ctx.beginPath();
-
- ctx.fillStyle =
-  '#ffd43b';
-
- ctx.arc(
-  coin.x,
-  coin.y,
-  coin.r,
-  0,
-  Math.PI * 2
- );
-
- ctx.fill();
-
- ctx.beginPath();
-
- ctx.fillStyle =
-  '#32d7ff';
-
- ctx.arc(
-  player.x,
-  player.y,
-  player.r,
-  0,
-  Math.PI * 2
- );
-
- ctx.fill();
+for(let x=0;x<W;x+=40){
+ctx.beginPath();
+ctx.moveTo(x,0);
+ctx.lineTo(x,H);
+ctx.stroke();
 }
 
-function gameLoop(now){
-
- const dt =
-  Math.min(
-   (now - last) /
-   1000,
-   .05
-  );
-
- last = now;
-
- update(
-  dt
- );
-
- draw();
-
- requestAnimationFrame(
-  gameLoop
- );
+for(let y=0;y<H;y+=40){
+ctx.beginPath();
+ctx.moveTo(0,y);
+ctx.lineTo(W,y);
+ctx.stroke();
 }
 
-function bindHold(
- id,
- key
-){
+ctx.beginPath();
+ctx.arc(coin.x,coin.y,coin.r,0,Math.PI*2);
+ctx.fillStyle="#ffd84d";
+ctx.fill();
 
- const button =
-  document.getElementById(
-   id
-  );
+ctx.beginPath();
+ctx.arc(player.x,player.y,player.r,0,Math.PI*2);
+ctx.fillStyle="#00d9ff";
+ctx.fill();
 
- const down =
-  event => {
-
-   event.preventDefault();
-
-   keys[key] =
-    true;
-  };
-
- const up =
-  event => {
-
-   event.preventDefault();
-
-   keys[key] =
-    false;
-  };
-
- button.addEventListener(
-  'pointerdown',
-  down
- );
-
- button.addEventListener(
-  'pointerup',
-  up
- );
-
- button.addEventListener(
-  'pointercancel',
-  up
- );
-
- button.addEventListener(
-  'pointerleave',
-  up
- );
+ctx.beginPath();
+ctx.arc(player.x-6,player.y-4,2.5,0,Math.PI*2);
+ctx.arc(player.x+6,player.y-4,2.5,0,Math.PI*2);
+ctx.fillStyle="#07111c";
+ctx.fill();
 }
 
-bindHold(
- 'left',
- 'left'
-);
+function frame(now){
+const dt=Math.min((now-last)/1000,0.033);
+last=now;
 
-bindHold(
- 'right',
- 'right'
-);
+update(dt);
+draw();
 
-bindHold(
- 'up',
- 'up'
-);
+requestAnimationFrame(frame);
+}
 
-bindHold(
- 'down',
- 'down'
-);
-
-document
- .getElementById(
-  'pause'
- )
- .onclick =
- () => {
-
-  paused =
-   !paused;
-
-  messageEl.textContent =
-   paused ?
-   'Paused' :
-   'Go!';
- };
-
-document
- .getElementById(
-  'action'
- )
- .onclick =
- () => {
-
-  messageEl.textContent =
-   'Action!';
- };
-
-document
- .getElementById(
-  'restart'
- )
- .onclick =
- resetGame;
-
-window.addEventListener(
- 'keydown',
- event => {
-
-  if(
-   event.key ===
-   'ArrowLeft' ||
-   event.key ===
-   'a'
-  ){
-   keys.left = true;
-  }
-
-  if(
-   event.key ===
-   'ArrowRight' ||
-   event.key ===
-   'd'
-  ){
-   keys.right = true;
-  }
-
-  if(
-   event.key ===
-   'ArrowUp' ||
-   event.key ===
-   'w'
-  ){
-   keys.up = true;
-  }
-
-  if(
-   event.key ===
-   'ArrowDown' ||
-   event.key ===
-   's'
-  ){
-   keys.down = true;
-  }
- }
-);
-
-window.addEventListener(
- 'keyup',
- event => {
-
-  if(
-   event.key ===
-   'ArrowLeft' ||
-   event.key ===
-   'a'
-  ){
-   keys.left = false;
-  }
-
-  if(
-   event.key ===
-   'ArrowRight' ||
-   event.key ===
-   'd'
-  ){
-   keys.right = false;
-  }
-
-  if(
-   event.key ===
-   'ArrowUp' ||
-   event.key ===
-   'w'
-  ){
-   keys.up = false;
-  }
-
-  if(
-   event.key ===
-   'ArrowDown' ||
-   event.key ===
-   's'
-  ){
-   keys.down = false;
-  }
- }
-);
-
-resetGame();
-
-requestAnimationFrame(
- gameLoop
-);
+randomCoin();
+requestAnimationFrame(frame);
 </script>
-
 </body>
 </html>
 """.trimIndent()
@@ -2217,14 +2006,8 @@ requestAnimationFrame(
     // 3D GAME FOUNDATION
     // ============================================================
 
-    fun create3DGameFoundation(
-        title: String = "Jarvis 3D Game"
-    ): String {
-
-        val safeTitle =
-            escapeHtml(
-                title
-            )
+    private fun create3DGameFoundation():
+        String {
 
         return """
 <!DOCTYPE html>
@@ -2232,621 +2015,471 @@ requestAnimationFrame(
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>$safeTitle</title>
-
+<title>Jarvis 3D Game</title>
 <style>
 *{box-sizing:border-box}
-
 html,body{
- margin:0;
- background:#030811;
- color:#fff;
- font-family:Arial,sans-serif
+margin:0;
+width:100%;
+height:100%;
+overflow:hidden;
+background:#07111c;
+touch-action:none;
+user-select:none;
+font-family:Arial,sans-serif
 }
-
-body{
- padding:10px
+canvas{display:block}
+#hud{
+position:fixed;
+top:12px;
+left:12px;
+z-index:10;
+color:#fff;
+background:#0008;
+padding:10px 12px;
+border-radius:12px;
+font-weight:bold;
+pointer-events:none
 }
-
-#shell{
- width:min(100%,900px);
- margin:auto
-}
-
-#top{
- display:flex;
- justify-content:space-between;
- margin-bottom:8px
-}
-
-#game{
- position:relative;
- width:100%;
- aspect-ratio:16/10;
- background:#07111c;
- border:1px solid #24546b;
- border-radius:14px;
- overflow:hidden
-}
-
-#game canvas{
- display:block;
- width:100%!important;
- height:100%!important;
- touch-action:none
-}
-
-#status{
- position:absolute;
- left:10px;
- right:10px;
- top:10px;
- text-align:center;
- z-index:5;
- font-weight:700
-}
-
 #controls{
- display:grid;
- grid-template-columns:repeat(3,1fr);
- gap:8px;
- margin-top:10px
+position:fixed;
+left:14px;
+right:14px;
+bottom:18px;
+z-index:10;
+display:flex;
+justify-content:space-between;
+pointer-events:none
 }
-
-button{
- min-height:52px;
- border:1px solid #39d9ff;
- border-radius:12px;
- background:#0b1c29;
- color:#fff;
- font-size:18px;
- font-weight:800
+.pad{
+display:flex;
+gap:8px;
+pointer-events:auto
 }
-
-#restart{
- width:100%;
- margin-top:8px
+.ctrl{
+width:62px;
+height:62px;
+border:0;
+border-radius:50%;
+background:#ffffffd9;
+color:#07111c;
+font-size:25px;
+font-weight:bold
 }
 </style>
 </head>
-
 <body>
 
-<div id="shell">
-
-<div id="top">
-<div><b>$safeTitle</b></div>
-<div>Score: <span id="score">0</span></div>
-</div>
-
-<div id="game">
-<div id="status">Loading 3D engine...</div>
+<div id="hud">
+JARVIS 3D • Target: <span id="distance">0</span>m
 </div>
 
 <div id="controls">
-<button id="left">◀</button>
-<button id="forward">▲</button>
-<button id="right">▶</button>
-
-<button id="back">▼</button>
-<button id="action">ACTION</button>
-<button id="pause">PAUSE</button>
+<div class="pad">
+<button class="ctrl" id="left">◀</button>
+<button class="ctrl" id="right">▶</button>
 </div>
-
-<button id="restart">RESTART</button>
-
+<div class="pad">
+<button class="ctrl" id="forward">▲</button>
+<button class="ctrl" id="back">▼</button>
+</div>
 </div>
 
 <script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
 
-const statusEl =
- document.getElementById(
-  'status'
- );
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x78b7df);
+scene.fog=new THREE.Fog(0x78b7df,35,120);
 
-const scoreEl =
- document.getElementById(
-  'score'
- );
+const camera=new THREE.PerspectiveCamera(
+65,
+innerWidth/innerHeight,
+0.1,
+180
+);
 
-const gameEl =
- document.getElementById(
-  'game'
- );
+camera.position.set(0,5,8);
 
-let THREE;
-
-try {
-
- THREE =
-  await import(
-   'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js'
-  );
-
-} catch(error) {
-
- statusEl.textContent =
-  '3D engine could not load. Check internet connection.';
-
- throw error;
-}
-
-const scene =
- new THREE.Scene();
-
-scene.background =
- new THREE.Color(
-  0x07111c
- );
-
-scene.fog =
- new THREE.Fog(
-  0x07111c,
-  18,
-  55
- );
-
-const camera =
- new THREE.PerspectiveCamera(
-  60,
-  gameEl.clientWidth /
-  Math.max(
-   gameEl.clientHeight,
-   1
-  ),
-  .1,
-  100
- );
-
-const renderer =
- new THREE.WebGLRenderer({
-  antialias:true
- });
+const renderer=new THREE.WebGLRenderer({
+antialias:true,
+powerPreference:"high-performance"
+});
 
 renderer.setPixelRatio(
- Math.min(
-  window.devicePixelRatio ||
-  1,
-  2
- )
+Math.min(devicePixelRatio||1,1.5)
 );
 
-gameEl.appendChild(
- renderer.domElement
+renderer.setSize(
+innerWidth,
+innerHeight
+);
+
+document.body.prepend(
+renderer.domElement
 );
 
 scene.add(
- new THREE.HemisphereLight(
-  0x9edfff,
-  0x172014,
-  2
- )
+new THREE.HemisphereLight(
+0xffffff,
+0x355030,
+2.2
+)
 );
 
-const sun =
- new THREE.DirectionalLight(
-  0xffffff,
-  2
- );
+const sun=
+new THREE.DirectionalLight(
+0xffffff,
+2.5
+);
 
 sun.position.set(
- 5,
- 10,
- 5
+8,
+14,
+5
 );
 
-scene.add(
- sun
+scene.add(sun);
+
+const floor=
+new THREE.Mesh(
+new THREE.PlaneGeometry(
+160,
+160
+),
+new THREE.MeshStandardMaterial({
+color:0x4c8750,
+roughness:1
+})
 );
 
-const floor =
- new THREE.Mesh(
-  new THREE.PlaneGeometry(
-   50,
-   50
-  ),
-  new THREE.MeshStandardMaterial({
-   color:0x163321
-  })
- );
+floor.rotation.x=
+-Math.PI/2;
 
-floor.rotation.x =
- -Math.PI / 2;
+scene.add(floor);
 
-scene.add(
- floor
+const grid=
+new THREE.GridHelper(
+160,
+80,
+0xffffff,
+0xffffff
 );
 
-scene.add(
- new THREE.GridHelper(
-  50,
-  25,
-  0x2a667c,
-  0x24452f
- )
+grid.material.opacity=
+0.12;
+
+grid.material.transparent=
+true;
+
+scene.add(grid);
+
+const player=
+new THREE.Mesh(
+new THREE.CapsuleGeometry(
+0.55,
+1.1,
+6,
+12
+),
+new THREE.MeshStandardMaterial({
+color:0x00d9ff
+})
 );
 
-const player =
- new THREE.Mesh(
-  new THREE.CapsuleGeometry(
-   .55,
-   1,
-   5,
-   10
-  ),
-  new THREE.MeshStandardMaterial({
-   color:0x32d7ff
-  })
- );
+player.position.y=
+1.1;
 
-player.position.set(
- 0,
- 1,
- 0
+scene.add(player);
+
+const target=
+new THREE.Mesh(
+new THREE.SphereGeometry(
+0.7,
+20,
+16
+),
+new THREE.MeshStandardMaterial({
+color:0xffd84d,
+emissive:0x553500
+})
 );
 
-scene.add(
- player
+target.position.set(
+8,
+0.7,
+-10
 );
 
-const target =
- new THREE.Mesh(
-  new THREE.SphereGeometry(
-   .5,
-   18,
-   18
-  ),
-  new THREE.MeshStandardMaterial({
-   color:0xffd43b
-  })
- );
+scene.add(target);
 
-scene.add(
- target
+for(let i=0;i<28;i++){
+
+const h=
+1.5+
+Math.random()*5;
+
+const box=
+new THREE.Mesh(
+new THREE.BoxGeometry(
+1.5+
+Math.random()*2,
+h,
+1.5+
+Math.random()*2
+),
+new THREE.MeshStandardMaterial({
+color:
+new THREE.Color().setHSL(
+0.3+
+Math.random()*0.15,
+0.35,
+0.3+
+Math.random()*0.2
+)
+})
 );
 
-const keys = {
- left:false,
- right:false,
- forward:false,
- back:false
+box.position.set(
+(Math.random()-.5)*70,
+h/2,
+(Math.random()-.5)*70
+);
+
+if(
+Math.abs(box.position.x)<5 &&
+Math.abs(box.position.z)<8
+){
+box.position.x+=10;
+}
+
+scene.add(box);
+}
+
+const keys={
+left:false,
+right:false,
+forward:false,
+back:false
 };
 
-let score = 0;
-let paused = false;
-let previous =
- performance.now();
+function bind(id,key){
 
-function moveTarget(){
+const el=
+document.getElementById(id);
 
- target.position.set(
-  (Math.random() - .5) * 18,
-  .6,
-  (Math.random() - .5) * 18
- );
-}
+const on=e=>{
+e.preventDefault();
+keys[key]=true;
+};
 
-function resetGame(){
+const off=e=>{
+e.preventDefault();
+keys[key]=false;
+};
 
- score = 0;
-
- scoreEl.textContent =
-  '0';
-
- player.position.set(
-  0,
-  1,
-  0
- );
-
- paused = false;
-
- moveTarget();
-
- statusEl.textContent =
-  'Collect the yellow orb';
-}
-
-function update(dt){
-
- if(paused){
-  return;
- }
-
- let x = 0;
- let z = 0;
-
- if(keys.left){
-  x--;
- }
-
- if(keys.right){
-  x++;
- }
-
- if(keys.forward){
-  z--;
- }
-
- if(keys.back){
-  z++;
- }
-
- if(x || z){
-
-  const length =
-   Math.hypot(
-    x,
-    z
-   ) || 1;
-
-  player.position.x +=
-   x /
-   length *
-   6 *
-   dt;
-
-  player.position.z +=
-   z /
-   length *
-   6 *
-   dt;
- }
-
- player.position.x =
-  THREE.MathUtils.clamp(
-   player.position.x,
-   -20,
-   20
-  );
-
- player.position.z =
-  THREE.MathUtils.clamp(
-   player.position.z,
-   -20,
-   20
-  );
-
- if(
-  Math.hypot(
-   player.position.x -
-   target.position.x,
-   player.position.z -
-   target.position.z
-  ) < 1.2
- ){
-
-  score++;
-
-  scoreEl.textContent =
-   String(
-    score
-   );
-
-  statusEl.textContent =
-   'Nice! Score ' +
-   score;
-
-  moveTarget();
- }
-
- const desired =
-  new THREE.Vector3(
-   player.position.x,
-   7,
-   player.position.z + 10
-  );
-
- camera.position.lerp(
-  desired,
-  .08
- );
-
- camera.lookAt(
-  player.position.x,
-  .8,
-  player.position.z
- );
-}
-
-function animate(now){
-
- const dt =
-  Math.min(
-   (now - previous) /
-   1000,
-   .05
-  );
-
- previous =
-  now;
-
- update(
-  dt
- );
-
- target.rotation.y +=
-  dt * 2;
-
- renderer.render(
-  scene,
-  camera
- );
-
- requestAnimationFrame(
-  animate
- );
-}
-
-function resize(){
-
- const width =
-  gameEl.clientWidth;
-
- const height =
-  Math.max(
-   gameEl.clientHeight,
-   1
-  );
-
- camera.aspect =
-  width /
-  height;
-
- camera.updateProjectionMatrix();
-
- renderer.setSize(
-  width,
-  height
- );
-}
-
-function bindHold(
- id,
- key
-){
-
- const button =
-  document.getElementById(
-   id
-  );
-
- const down =
-  event => {
-
-   event.preventDefault();
-
-   keys[key] =
-    true;
-  };
-
- const up =
-  event => {
-
-   event.preventDefault();
-
-   keys[key] =
-    false;
-  };
-
- button.addEventListener(
-  'pointerdown',
-  down
- );
-
- button.addEventListener(
-  'pointerup',
-  up
- );
-
- button.addEventListener(
-  'pointercancel',
-  up
- );
-
- button.addEventListener(
-  'pointerleave',
-  up
- );
-}
-
-bindHold(
- 'left',
- 'left'
+el.addEventListener(
+"pointerdown",
+on
 );
 
-bindHold(
- 'right',
- 'right'
+el.addEventListener(
+"pointerup",
+off
 );
 
-bindHold(
- 'forward',
- 'forward'
+el.addEventListener(
+"pointercancel",
+off
 );
 
-bindHold(
- 'back',
- 'back'
+el.addEventListener(
+"pointerleave",
+off
+);
+}
+
+bind("left","left");
+bind("right","right");
+bind("forward","forward");
+bind("back","back");
+
+addEventListener(
+"keydown",
+e=>{
+
+if(e.key==="a"||e.key==="ArrowLeft"){
+keys.left=true;
+}
+
+if(e.key==="d"||e.key==="ArrowRight"){
+keys.right=true;
+}
+
+if(e.key==="w"||e.key==="ArrowUp"){
+keys.forward=true;
+}
+
+if(e.key==="s"||e.key==="ArrowDown"){
+keys.back=true;
+}
+}
 );
 
-document
- .getElementById(
-  'pause'
- )
- .onclick =
- () => {
+addEventListener(
+"keyup",
+e=>{
 
-  paused =
-   !paused;
+if(e.key==="a"||e.key==="ArrowLeft"){
+keys.left=false;
+}
 
-  statusEl.textContent =
-   paused ?
-   'Paused' :
-   'Go!';
- };
+if(e.key==="d"||e.key==="ArrowRight"){
+keys.right=false;
+}
 
-document
- .getElementById(
-  'action'
- )
- .onclick =
- () => {
+if(e.key==="w"||e.key==="ArrowUp"){
+keys.forward=false;
+}
 
-  statusEl.textContent =
-   'Action!';
- };
-
-document
- .getElementById(
-  'restart'
- )
- .onclick =
- resetGame;
-
-window.addEventListener(
- 'resize',
- resize
+if(e.key==="s"||e.key==="ArrowDown"){
+keys.back=false;
+}
+}
 );
 
-resize();
+const distanceEl=
+document.getElementById(
+"distance"
+);
 
-resetGame();
+const clock=
+new THREE.Clock();
+
+function update(){
+
+const dt=
+Math.min(
+clock.getDelta(),
+0.033
+);
+
+let x=
+(keys.right?1:0)-
+(keys.left?1:0);
+
+let z=
+(keys.back?1:0)-
+(keys.forward?1:0);
+
+if(x||z){
+
+const length=
+Math.hypot(
+x,
+z
+)||1;
+
+x/=length;
+z/=length;
+
+player.position.x+=
+x*6*dt;
+
+player.position.z+=
+z*6*dt;
+}
+
+player.position.x=
+THREE.MathUtils.clamp(
+player.position.x,
+-75,
+75
+);
+
+player.position.z=
+THREE.MathUtils.clamp(
+player.position.z,
+-75,
+75
+);
+
+const desired=
+new THREE.Vector3(
+player.position.x,
+5,
+player.position.z+8
+);
+
+camera.position.lerp(
+desired,
+0.08
+);
+
+camera.lookAt(
+player.position.x,
+1,
+player.position.z-3
+);
+
+const distance=
+player.position.distanceTo(
+target.position
+);
+
+distanceEl.textContent=
+distance.toFixed(1);
+
+target.rotation.y+=
+dt;
+
+target.position.y=
+0.8+
+Math.sin(
+performance.now()*0.003
+)*0.18;
+}
+
+function animate(){
 
 requestAnimationFrame(
- animate
+animate
 );
 
-</script>
+update();
 
+renderer.render(
+scene,
+camera
+);
+}
+
+animate();
+
+addEventListener(
+"resize",
+()=>{
+
+camera.aspect=
+innerWidth/
+innerHeight;
+
+camera.updateProjectionMatrix();
+
+renderer.setSize(
+innerWidth,
+innerHeight
+);
+}
+);
+</script>
 </body>
 </html>
 """.trimIndent()
     }
 
     // ============================================================
-    // PROJECT INFO
-    // ============================================================
-
-    private fun writeProjectInfo(
-        project: JarvisProject
-    ) {
-
-        File(
-            project.directory,
-            PROJECT_INFO_FILE
-        ).writeText(
-            """
-id=${project.id}
-name=${project.name}
-type=${project.type.name}
-created=${System.currentTimeMillis()}
-""".trimIndent()
-        )
-    }
-
-    // ============================================================
-    // PROJECT NAME
+    // PROJECT NAMES
     // ============================================================
 
     fun suggestedProjectName(
@@ -2854,148 +2487,93 @@ created=${System.currentTimeMillis()}
         type: JarvisProjectType
     ): String {
 
-        /*
-         * Example:
-         *
-         * "Create a website called Nova Test with a dark design"
-         *
-         * becomes:
-         *
-         * nova_test
-         *
-         * instead of:
-         *
-         * nova_test_with_a_dark_design
-         */
-        val called =
-            Regex(
-                """\b(?:called|named)\s+([a-z0-9][a-z0-9 '&-]{0,39}?)(?=\s+(?:with|that|which|using|featuring|for)\b|[.!?,]|$)""",
-                RegexOption.IGNORE_CASE
-            )
-                .find(
-                    request
-                )
-                ?.groupValues
-                ?.getOrNull(
-                    1
-                )
-                ?.trim()
-
-        if (!called.isNullOrBlank()) {
-
-            return sanitizeProjectName(
-                called
-            )
-        }
-
-        var cleaned =
+        val lower =
             request.lowercase(
                 Locale.getDefault()
             )
 
-        val removable =
-            listOf(
-                "please",
-                "jarvis",
-                "can you",
-                "could you",
-                "build me",
-                "make me",
-                "create me",
-                "build",
-                "make",
-                "create",
-                "develop",
-                "generate",
-                "start",
-                "new",
-                "another",
-                "a website",
-                "website",
-                "web site",
-                "webpage",
-                "web page",
-                "landing page",
-                "portfolio site",
-                "business site",
-                "a 2d game",
-                "2d game",
-                "a 3d game",
-                "3d game",
-                "web game",
-                "game"
-            )
+        val default =
+            defaultProjectName(type)
 
-        removable.forEach {
-
-            cleaned =
-                cleaned.replace(
-                    it,
-                    " "
-                )
-        }
-
-        /*
-         * Remove the descriptive part of the request so a sentence
-         * does not become a huge project name.
-         */
-        cleaned =
-            cleaned
+        val cleaned =
+            request
                 .replace(
                     Regex(
-                        """\b(?:with|that|which|using|featuring|for)\b.*$""",
-                        RegexOption.IGNORE_CASE
+                        """(?i)\b(create|make|build|generate|start|new|another|please|me|a|an)\b"""
                     ),
                     " "
                 )
                 .replace(
                     Regex(
-                        "[^a-z0-9 ]"
+                        """(?i)\b(website|web\s*site|webpage|web\s*page|2d\s*game|3d\s*game|game|project)\b"""
                     ),
                     " "
                 )
                 .replace(
                     Regex(
-                        "\\s+"
+                        """\s+"""
                     ),
                     " "
                 )
                 .trim()
+                .take(45)
 
-        val words =
-            cleaned
-                .split(
-                    " "
+        if (
+            cleaned.length <
+                3 ||
+            lower ==
+                cleaned.lowercase(
+                    Locale.getDefault()
                 )
-                .filter {
-                    it.isNotBlank()
-                }
-                .take(
-                    4
-                )
-
-        if (words.isNotEmpty()) {
-
-            return sanitizeProjectName(
-                words.joinToString(
-                    "_"
-                )
-            )
+        ) {
+            return default
         }
+
+        return cleaned
+            .split(" ")
+            .filter {
+                it.isNotBlank()
+            }
+            .joinToString(" ") {
+
+                it.replaceFirstChar { char ->
+
+                    if (
+                        char.isLowerCase()
+                    ) {
+
+                        char.titlecase(
+                            Locale.getDefault()
+                        )
+
+                    } else {
+
+                        char.toString()
+                    }
+                }
+            }
+            .ifBlank {
+                default
+            }
+    }
+
+    private fun defaultProjectName(
+        type: JarvisProjectType
+    ): String {
 
         return when (type) {
 
             JarvisProjectType.WEBSITE ->
-                "website"
+                "Jarvis Website"
 
             JarvisProjectType.GAME_2D ->
-                "2d_game"
+                "Jarvis 2D Game"
 
             JarvisProjectType.GAME_3D ->
-                "3d_game"
+                "Jarvis 3D Game"
 
             JarvisProjectType.UNKNOWN ->
-                "project"
+                "Jarvis Project"
         }
     }
 
@@ -3003,86 +2581,280 @@ created=${System.currentTimeMillis()}
         name: String
     ): String {
 
-        val cleaned =
+        val safe =
             name
                 .lowercase(
                     Locale.getDefault()
                 )
                 .replace(
                     Regex(
-                        "[^a-z0-9_-]"
+                        """[^a-z0-9]+"""
                     ),
-                    "_"
+                    "-"
                 )
-                .replace(
-                    Regex(
-                        "_+"
-                    ),
-                    "_"
-                )
-                .trim(
-                    '_'
-                )
-                .take(
-                    50
-                )
+                .trim('-')
+                .take(36)
 
-        return cleaned.ifBlank {
-            "jarvis_project"
+        return safe.ifBlank {
+            "jarvis-project"
         }
     }
 
-    private fun displayName(
-        name: String
+    private fun projectTypeName(
+        type: JarvisProjectType
     ): String {
 
-        return name
-            .replace(
-                "_",
-                " "
-            )
-            .split(
-                " "
-            )
-            .filter {
-                it.isNotBlank()
-            }
-            .joinToString(
-                " "
-            ) {
-                it.replaceFirstChar { character ->
-                    character.uppercase()
-                }
-            }
-            .ifBlank {
-                "Jarvis Game"
-            }
+        return when (type) {
+
+            JarvisProjectType.WEBSITE ->
+                "WEBSITE"
+
+            JarvisProjectType.GAME_2D ->
+                "2D GAME"
+
+            JarvisProjectType.GAME_3D ->
+                "3D GAME"
+
+            JarvisProjectType.UNKNOWN ->
+                "PROJECT"
+        }
     }
 
-    private fun escapeHtml(
+    // ============================================================
+    // METADATA
+    // ============================================================
+
+    private fun writeMetadata(
+        project: JarvisProject
+    ) {
+
+        val metadata =
+            """
+id=${project.id}
+name=${escapeMetadata(project.name)}
+type=${project.type.name}
+""".trimIndent()
+
+        File(
+            project.directory,
+            META_FILE
+        ).writeText(
+            metadata,
+            Charsets.UTF_8
+        )
+    }
+
+    private fun loadProject(
+        id: String
+    ): JarvisProject? {
+
+        val directory =
+            File(
+                root,
+                id
+            )
+
+        if (
+            !directory.exists() ||
+            !directory.isDirectory
+        ) {
+            return null
+        }
+
+        val metadataFile =
+            File(
+                directory,
+                META_FILE
+            )
+
+        if (!metadataFile.exists()) {
+            return null
+        }
+
+        return try {
+
+            val values =
+                mutableMapOf<String, String>()
+
+            metadataFile
+                .readLines(
+                    Charsets.UTF_8
+                )
+                .forEach { line ->
+
+                    val separator =
+                        line.indexOf('=')
+
+                    if (separator > 0) {
+
+                        val key =
+                            line
+                                .substring(
+                                    0,
+                                    separator
+                                )
+                                .trim()
+
+                        val value =
+                            line
+                                .substring(
+                                    separator + 1
+                                )
+
+                        values[key] =
+                            value
+                    }
+                }
+
+            val name =
+                unescapeMetadata(
+                    values["name"]
+                        ?: id
+                )
+
+            val type =
+                try {
+
+                    JarvisProjectType.valueOf(
+                        values["type"]
+                            ?: JarvisProjectType.UNKNOWN.name
+                    )
+
+                } catch (
+                    _: Exception
+                ) {
+
+                    JarvisProjectType.UNKNOWN
+                }
+
+            JarvisProject(
+                id =
+                    values["id"]
+                        ?: id,
+                name =
+                    name,
+                type =
+                    type,
+                directory =
+                    directory
+            )
+
+        } catch (
+            _: Exception
+        ) {
+
+            null
+        }
+    }
+
+    private fun escapeMetadata(
         value: String
     ): String {
 
         return value
             .replace(
-                "&",
-                "&amp;"
+                "\\",
+                "\\\\"
             )
             .replace(
-                "<",
-                "&lt;"
+                "\n",
+                "\\n"
             )
             .replace(
-                ">",
-                "&gt;"
+                "\r",
+                ""
+            )
+    }
+
+    private fun unescapeMetadata(
+        value: String
+    ): String {
+
+        return value
+            .replace(
+                "\\n",
+                "\n"
             )
             .replace(
-                "\"",
-                "&quot;"
+                "\\\\",
+                "\\"
             )
-            .replace(
-                "'",
-                "&#39;"
+    }
+
+    // ============================================================
+    // BACKUPS
+    // ============================================================
+
+    private fun createBackup(
+        project: JarvisProject,
+        source: File
+    ) {
+
+        val backupDirectory =
+            File(
+                project.directory,
+                "backups"
+            ).apply {
+                mkdirs()
+            }
+
+        val backup =
+            File(
+                backupDirectory,
+                "index-${System.currentTimeMillis()}.html"
             )
+
+        source.copyTo(
+            backup,
+            overwrite =
+                false
+        )
+
+        cleanOldBackups(
+            project
+        )
+    }
+
+    private fun cleanOldBackups(
+        project: JarvisProject
+    ) {
+
+        val backupDirectory =
+            File(
+                project.directory,
+                "backups"
+            )
+
+        if (!backupDirectory.exists()) {
+            return
+        }
+
+        val backups =
+            backupDirectory
+                .listFiles()
+                ?.filter {
+                    it.isFile &&
+                        it.extension.equals(
+                            "html",
+                            ignoreCase =
+                                true
+                        )
+                }
+                ?.sortedByDescending {
+                    it.lastModified()
+                }
+                .orEmpty()
+
+        backups
+            .drop(MAX_BACKUPS)
+            .forEach {
+
+                try {
+                    it.delete()
+                } catch (
+                    _: Exception
+                ) {
+                }
+            }
     }
 }
