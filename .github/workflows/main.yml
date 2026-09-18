@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Get Jarvis source
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Java 17
@@ -20,17 +20,318 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-
-      - name: Make Gradle executable
-        run: chmod +x gradlew
-
-      - name: Build Jarvis APK
-        run: ./gradlew assembleDebug
-
-      - name: Upload Jarvis APK
-        uses: actions/upload-artifact@v4
         with:
-          name: Jarvis-Android-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          gradle-version: '8.11.1'
+
+      - name: Create Jarvis Android project
+        shell: bash
+        run: |
+          mkdir -p app/src/main/java/com/novajarvis/android
+          mkdir -p app/src/main/res/values
+
+          cat > settings.gradle.kts <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+
+          rootProject.name = "JarvisAndroidLite"
+          include(":app")
+          EOF
+
+          cat > build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application") version "8.9.1" apply false
+              id("org.jetbrains.kotlin.android") version "2.1.20" apply false
+              id("org.jetbrains.kotlin.plugin.compose") version "2.1.20" apply false
+          }
+          EOF
+
+          cat > app/build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+              id("org.jetbrains.kotlin.plugin.compose")
+          }
+
+          android {
+              namespace = "com.novajarvis.android"
+              compileSdk = 35
+
+              defaultConfig {
+                  applicationId = "com.novajarvis.android"
+                  minSdk = 26
+                  targetSdk = 35
+                  versionCode = 1
+                  versionName = "0.1"
+              }
+
+              buildFeatures {
+                  compose = true
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          }
+
+          dependencies {
+              val composeBom =
+                  platform("androidx.compose:compose-bom:2025.08.01")
+
+              implementation(composeBom)
+              androidTestImplementation(composeBom)
+
+              implementation(
+                  "androidx.activity:activity-compose:1.10.1"
+              )
+
+              implementation(
+                  "androidx.compose.material3:material3"
+              )
+
+              implementation(
+                  "androidx.compose.ui:ui"
+              )
+
+              implementation(
+                  "androidx.compose.ui:ui-tooling-preview"
+              )
+
+              debugImplementation(
+                  "androidx.compose.ui:ui-tooling"
+              )
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission
+                  android:name="android.permission.INTERNET" />
+
+              <uses-permission
+                  android:name="android.permission.RECORD_AUDIO" />
+
+              <application
+                  android:theme="@style/Theme.Jarvis"
+                  android:label="Jarvis"
+                  android:allowBackup="true"
+                  android:supportsRtl="true">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+
+                      <intent-filter>
+                          <action
+                              android:name="android.intent.action.MAIN" />
+
+                          <category
+                              android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+
+                  </activity>
+
+              </application>
+
+          </manifest>
+          EOF
+
+          cat > app/src/main/res/values/styles.xml <<'EOF'
+          <resources>
+
+              <style
+                  name="Theme.Jarvis"
+                  parent="android:style/Theme.Material.NoActionBar">
+
+                  <item name="android:fontFamily">
+                      sans
+                  </item>
+
+                  <item name="android:windowLightStatusBar">
+                      false
+                  </item>
+
+                  <item name="android:statusBarColor">
+                      #030A12
+                  </item>
+
+                  <item name="android:navigationBarColor">
+                      #030A12
+                  </item>
+
+              </style>
+
+          </resources>
+          EOF
+
+          cat > app/src/main/java/com/novajarvis/android/MainActivity.kt <<'EOF'
+          package com.novajarvis.android
+
+          import android.os.Bundle
+          import androidx.activity.ComponentActivity
+          import androidx.activity.compose.setContent
+          import androidx.compose.foundation.background
+          import androidx.compose.foundation.layout.*
+          import androidx.compose.foundation.lazy.LazyColumn
+          import androidx.compose.foundation.lazy.items
+          import androidx.compose.material3.*
+          import androidx.compose.runtime.*
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.graphics.Color
+          import androidx.compose.ui.unit.dp
+
+          class MainActivity : ComponentActivity() {
+
+              override fun onCreate(
+                  savedInstanceState: Bundle?
+              ) {
+                  super.onCreate(savedInstanceState)
+
+                  setContent {
+                      JarvisApp()
+                  }
+              }
+          }
+
+          data class Msg(
+              val who: String,
+              val text: String
+          )
+
+          @Composable
+          fun JarvisApp() {
+
+              val background = Color(0xFF030A12)
+              val cyan = Color(0xFF42D9FF)
+
+              var input by remember {
+                  mutableStateOf("")
+              }
+
+              val messages = remember {
+                  mutableStateListOf(
+                      Msg(
+                          "JARVIS",
+                          "Android core ready. Local AI is the next module."
+                      )
+                  )
+              }
+
+              MaterialTheme(
+                  colorScheme = darkColorScheme(
+                      primary = cyan,
+                      background = background,
+                      surface = Color(0xFF071522)
+                  )
+              ) {
+
+                  Column(
+                      Modifier
+                          .fillMaxSize()
+                          .background(background)
+                          .padding(16.dp)
+                  ) {
+
+                      Text(
+                          "JARVIS // ANDROID LITE",
+                          color = cyan,
+                          style =
+                              MaterialTheme.typography.headlineSmall
+                      )
+
+                      Text(
+                          "FAST • TALK • LOCAL-FIRST",
+                          color = Color.LightGray
+                      )
+
+                      Spacer(
+                          Modifier.height(12.dp)
+                      )
+
+                      LazyColumn(
+                          Modifier
+                              .weight(1f)
+                              .fillMaxWidth()
+                      ) {
+
+                          items(messages) { message ->
+
+                              Text(
+                                  "${message.who}: ${message.text}",
+                                  color =
+                                      if (message.who == "YOU")
+                                          Color.White
+                                      else
+                                          cyan,
+                                  modifier =
+                                      Modifier.padding(
+                                          vertical = 7.dp
+                                      )
+                              )
+                          }
+                      }
+
+                      Row(
+                          Modifier.fillMaxWidth()
+                      ) {
+
+                          OutlinedTextField(
+                              value = input,
+                              onValueChange = {
+                                  input = it
+                              },
+                              modifier =
+                                  Modifier.weight(1f),
+                              label = {
+                                  Text("Talk to Jarvis")
+                              }
+                          )
+
+                          Spacer(
+                              Modifier.width(8.dp)
+                          )
+
+                          Button(
+                              onClick = {
+
+                                  val question =
+                                      input.trim()
+
+                                  if (question.isNotEmpty()) {
+
+                                      messages +=
+                                          Msg(
+                                              "YOU",
+                                              question
+                                          )
+
+                                      messages +=
+                                          Msg(
+                                              "JARVIS",
+                                              "I received that. Offline AI model support
