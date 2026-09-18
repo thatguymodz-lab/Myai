@@ -50,22 +50,33 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
     private var builderMode = false
     private var tts: TextToSpeech? = null
+
     private var modelReady = false
     private var modelLoaded = false
     private var llamaModel: LlamaModel? = null
 
-    private val downloadExecutor = Executors.newSingleThreadExecutor()
+    private val downloadExecutor =
+        Executors.newSingleThreadExecutor()
 
     private val prefs by lazy {
-        getSharedPreferences("jarvis_memory", MODE_PRIVATE)
+        getSharedPreferences(
+            "jarvis_memory",
+            MODE_PRIVATE
+        )
     }
 
     private val modelFile by lazy {
-        File(filesDir, "models/qwen2.5-0.5b-instruct-q4_k_m.gguf")
+        File(
+            filesDir,
+            "models/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+        )
     }
 
     private val partialModelFile by lazy {
-        File(filesDir, "models/qwen2.5-0.5b-instruct-q4_k_m.gguf.part")
+        File(
+            filesDir,
+            "models/qwen2.5-0.5b-instruct-q4_k_m.gguf.part"
+        )
     }
 
     private val MODEL_URL =
@@ -87,11 +98,17 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                         RecognizerIntent.EXTRA_RESULTS
                     )
 
-                val spoken = results?.firstOrNull()
+                val spoken =
+                    results?.firstOrNull()
 
                 if (!spoken.isNullOrBlank()) {
+
                     inputText.setText(spoken)
-                    inputText.setSelection(spoken.length)
+
+                    inputText.setSelection(
+                        spoken.length
+                    )
+
                     sendMessage()
                 }
             }
@@ -103,9 +120,14 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         ) { granted ->
 
             if (granted) {
+
                 startVoiceInput()
+
             } else {
-                setStatus("MICROPHONE PERMISSION DENIED")
+
+                setStatus(
+                    "MICROPHONE PERMISSION DENIED"
+                )
 
                 addJarvisMessage(
                     "I need microphone permission before TALK can work."
@@ -117,28 +139,46 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     // CREATE
     // ============================================================
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+    override fun onCreate(
+        savedInstanceState: Bundle?
+    ) {
 
-        workspace = ProjectWorkspace(this)
-        tts = TextToSpeech(this, this)
+        super.onCreate(
+            savedInstanceState
+        )
+
+        workspace =
+            ProjectWorkspace(this)
+
+        tts =
+            TextToSpeech(
+                this,
+                this
+            )
 
         buildInterface()
         restoreMemory()
         checkModel()
 
-        addJarvisMessage("JARVIS Android initialized.")
+        addJarvisMessage(
+            "JARVIS Android initialized."
+        )
 
-        workspace.getCurrentProject()?.let { current ->
+        workspace
+            .getCurrentProject()
+            ?.let { current ->
 
-            addJarvisMessage(
-                "Project workspace restored: " +
-                    "${current.name} (${projectLabel(current.type)})."
-            )
-        }
+                addJarvisMessage(
+                    "Project workspace restored: " +
+                        "${current.name} " +
+                        "(${projectLabel(current.type)})."
+                )
+            }
 
         if (modelReady) {
+
             loadLocalModel()
+
         } else {
 
             addJarvisMessage(
@@ -154,42 +194,136 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
     private fun buildInterface() {
 
-        val background = Color.rgb(3, 10, 18)
-        val panel = Color.rgb(8, 20, 31)
-        val cyan = Color.rgb(0, 217, 255)
-        val white = Color.rgb(235, 248, 255)
-        val muted = Color.rgb(130, 170, 185)
+        val background =
+            Color.rgb(
+                3,
+                10,
+                18
+            )
 
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(background)
-            setPadding(dp(16), dp(20), dp(16), dp(16))
-        }
+        val panel =
+            Color.rgb(
+                8,
+                20,
+                31
+            )
 
-        val title = TextView(this).apply {
-            text = "J A R V I S"
-            textSize = 28f
-            setTextColor(cyan)
-            gravity = Gravity.CENTER
-            setTypeface(Typeface.DEFAULT, Typeface.BOLD)
-            setPadding(0, dp(10), 0, dp(4))
-        }
+        val cyan =
+            Color.rgb(
+                0,
+                217,
+                255
+            )
 
-        val subtitle = TextView(this).apply {
-            text = "PRIVATE AI + WEB BUILDER"
-            textSize = 12f
-            setTextColor(muted)
-            gravity = Gravity.CENTER
-            setPadding(0, 0, 0, dp(12))
-        }
+        val white =
+            Color.rgb(
+                235,
+                248,
+                255
+            )
 
-        statusText = TextView(this).apply {
-            text = "SYSTEM: STARTING"
-            textSize = 12f
-            setTextColor(cyan)
-            setBackgroundColor(panel)
-            setPadding(dp(12), dp(10), dp(12), dp(10))
-        }
+        val muted =
+            Color.rgb(
+                130,
+                170,
+                185
+            )
+
+        val root =
+            LinearLayout(this).apply {
+
+                orientation =
+                    LinearLayout.VERTICAL
+
+                setBackgroundColor(
+                    background
+                )
+
+                setPadding(
+                    dp(16),
+                    dp(20),
+                    dp(16),
+                    dp(16)
+                )
+            }
+
+        val title =
+            TextView(this).apply {
+
+                text =
+                    "J A R V I S"
+
+                textSize =
+                    28f
+
+                setTextColor(
+                    cyan
+                )
+
+                gravity =
+                    Gravity.CENTER
+
+                setTypeface(
+                    Typeface.DEFAULT,
+                    Typeface.BOLD
+                )
+
+                setPadding(
+                    0,
+                    dp(10),
+                    0,
+                    dp(4)
+                )
+            }
+
+        val subtitle =
+            TextView(this).apply {
+
+                text =
+                    "PRIVATE AI + WEB BUILDER"
+
+                textSize =
+                    12f
+
+                setTextColor(
+                    muted
+                )
+
+                gravity =
+                    Gravity.CENTER
+
+                setPadding(
+                    0,
+                    0,
+                    0,
+                    dp(12)
+                )
+            }
+
+        statusText =
+            TextView(this).apply {
+
+                text =
+                    "SYSTEM: STARTING"
+
+                textSize =
+                    12f
+
+                setTextColor(
+                    cyan
+                )
+
+                setBackgroundColor(
+                    panel
+                )
+
+                setPadding(
+                    dp(12),
+                    dp(10),
+                    dp(12),
+                    dp(10)
+                )
+            }
 
         progressBar =
             ProgressBar(
@@ -197,22 +331,49 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 null,
                 android.R.attr.progressBarStyleHorizontal
             ).apply {
-                max = 100
-                progress = 0
-                visibility = View.GONE
+
+                max =
+                    100
+
+                progress =
+                    0
+
+                visibility =
+                    View.GONE
             }
 
-        val scroll = ScrollView(this).apply {
-            isFillViewport = true
-            setBackgroundColor(panel)
-        }
+        val scroll =
+            ScrollView(this).apply {
 
-        chatText = TextView(this).apply {
-            textSize = 15f
-            setTextColor(white)
-            setPadding(dp(14), dp(14), dp(14), dp(14))
-            setTextIsSelectable(true)
-        }
+                isFillViewport =
+                    true
+
+                setBackgroundColor(
+                    panel
+                )
+            }
+
+        chatText =
+            TextView(this).apply {
+
+                textSize =
+                    15f
+
+                setTextColor(
+                    white
+                )
+
+                setPadding(
+                    dp(14),
+                    dp(14),
+                    dp(14),
+                    dp(14)
+                )
+
+                setTextIsSelectable(
+                    true
+                )
+            }
 
         scroll.addView(
             chatText,
@@ -222,42 +383,126 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             )
         )
 
-        inputText = EditText(this).apply {
-            hint = "Ask Jarvis..."
-            setHintTextColor(muted)
-            setTextColor(white)
-            setBackgroundColor(panel)
-            setPadding(dp(12), dp(12), dp(12), dp(12))
-            maxLines = 5
-        }
+        inputText =
+            EditText(this).apply {
 
-        val normalRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
+                hint =
+                    "Ask Jarvis..."
 
-        talkButton = makeButton("TALK", cyan, background)
-        sendButton = makeButton("SEND", cyan, background)
-        modelButton = makeButton("MODEL", cyan, background)
+                setHintTextColor(
+                    muted
+                )
 
-        addWeightedButton(normalRow, talkButton)
-        addWeightedButton(normalRow, sendButton)
-        addWeightedButton(normalRow, modelButton)
+                setTextColor(
+                    white
+                )
 
-        val builderRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
+                setBackgroundColor(
+                    panel
+                )
 
-        buildButton = makeButton("BUILD", cyan, background)
-        previewButton = makeButton("PREVIEW", cyan, background)
+                setPadding(
+                    dp(12),
+                    dp(12),
+                    dp(12),
+                    dp(12)
+                )
 
-        addWeightedButton(builderRow, buildButton)
-        addWeightedButton(builderRow, previewButton)
+                maxLines =
+                    5
+            }
 
-        root.addView(title)
-        root.addView(subtitle)
-        root.addView(statusText)
+        val normalRow =
+            LinearLayout(this).apply {
+
+                orientation =
+                    LinearLayout.HORIZONTAL
+
+                gravity =
+                    Gravity.CENTER
+            }
+
+        talkButton =
+            makeButton(
+                "TALK",
+                cyan,
+                background
+            )
+
+        sendButton =
+            makeButton(
+                "SEND",
+                cyan,
+                background
+            )
+
+        modelButton =
+            makeButton(
+                "MODEL",
+                cyan,
+                background
+            )
+
+        addWeightedButton(
+            normalRow,
+            talkButton
+        )
+
+        addWeightedButton(
+            normalRow,
+            sendButton
+        )
+
+        addWeightedButton(
+            normalRow,
+            modelButton
+        )
+
+        val builderRow =
+            LinearLayout(this).apply {
+
+                orientation =
+                    LinearLayout.HORIZONTAL
+
+                gravity =
+                    Gravity.CENTER
+            }
+
+        buildButton =
+            makeButton(
+                "BUILD",
+                cyan,
+                background
+            )
+
+        previewButton =
+            makeButton(
+                "PREVIEW",
+                cyan,
+                background
+            )
+
+        addWeightedButton(
+            builderRow,
+            buildButton
+        )
+
+        addWeightedButton(
+            builderRow,
+            previewButton
+        )
+
+        root.addView(
+            title
+        )
+
+        root.addView(
+            subtitle
+        )
+
+        root.addView(
+            statusText
+        )
 
         root.addView(
             progressBar,
@@ -265,7 +510,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(6)
             ).apply {
-                topMargin = dp(6)
+
+                topMargin =
+                    dp(6)
             }
         )
 
@@ -276,8 +523,12 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 0,
                 1f
             ).apply {
-                topMargin = dp(10)
-                bottomMargin = dp(10)
+
+                topMargin =
+                    dp(10)
+
+                bottomMargin =
+                    dp(10)
             }
         )
 
@@ -287,11 +538,15 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                bottomMargin = dp(8)
+
+                bottomMargin =
+                    dp(8)
             }
         )
 
-        root.addView(normalRow)
+        root.addView(
+            normalRow
+        )
 
         root.addView(
             builderRow,
@@ -299,23 +554,31 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(52)
             ).apply {
-                topMargin = dp(6)
+
+                topMargin =
+                    dp(6)
             }
         )
 
-        setContentView(root)
+        setContentView(
+            root
+        )
 
         sendButton.setOnClickListener {
+
             sendMessage()
         }
 
         talkButton.setOnClickListener {
+
             requestVoiceInput()
         }
 
         buildButton.setOnClickListener {
 
-            builderMode = !builderMode
+            builderMode =
+                !builderMode
+
             updateBuilderButton()
 
             if (builderMode) {
@@ -325,7 +588,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                         "a 2D game, or a 3D game."
                 )
 
-                setStatus("BUILDER: READY")
+                setStatus(
+                    "BUILDER: READY"
+                )
 
             } else {
 
@@ -333,11 +598,14 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     "Builder Mode disabled. Normal Jarvis chat restored."
                 )
 
-                setStatus("SYSTEM: AI READY")
+                setStatus(
+                    "SYSTEM: AI READY"
+                )
             }
         }
 
         previewButton.setOnClickListener {
+
             previewCurrentProject()
         }
 
@@ -346,14 +614,17 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             when {
 
                 modelLoaded ->
+
                     addJarvisMessage(
                         "The local Jarvis AI model is loaded and ready."
                     )
 
                 modelReady ->
+
                     loadLocalModel()
 
                 else ->
+
                     downloadModel()
             }
         }
@@ -371,8 +642,12 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 dp(52),
                 1f
             ).apply {
-                marginStart = dp(3)
-                marginEnd = dp(3)
+
+                marginStart =
+                    dp(3)
+
+                marginEnd =
+                    dp(3)
             }
         )
     }
@@ -384,18 +659,36 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     ): Button {
 
         return Button(this).apply {
-            text = label
-            setTextColor(textColor)
-            setBackgroundColor(backgroundColor)
-            setTypeface(Typeface.DEFAULT, Typeface.BOLD)
-            isAllCaps = false
+
+            text =
+                label
+
+            setTextColor(
+                textColor
+            )
+
+            setBackgroundColor(
+                backgroundColor
+            )
+
+            setTypeface(
+                Typeface.DEFAULT,
+                Typeface.BOLD
+            )
+
+            isAllCaps =
+                false
         }
     }
 
     private fun updateBuilderButton() {
+
         buildButton.text =
-            if (builderMode) "BUILD ✓"
-            else "BUILD"
+            if (builderMode) {
+                "BUILD ✓"
+            } else {
+                "BUILD"
+            }
     }
 
     // ============================================================
@@ -405,14 +698,26 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private fun sendMessage() {
 
         val message =
-            inputText.text.toString().trim()
+            inputText
+                .text
+                .toString()
+                .trim()
 
-        if (message.isEmpty()) return
+        if (message.isEmpty()) {
+            return
+        }
 
-        inputText.setText("")
+        inputText.setText(
+            ""
+        )
 
-        addUserMessage(message)
-        rememberLastUserMessage(message)
+        addUserMessage(
+            message
+        )
+
+        rememberLastUserMessage(
+            message
+        )
 
         if (!modelReady) {
 
@@ -432,23 +737,35 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             )
 
             loadLocalModel()
+
             return
         }
 
         val isNewBuild =
-            workspace.isNewBuildRequest(message)
+            workspace.isNewBuildRequest(
+                message
+            )
 
         val isEdit =
-            workspace.isProjectEditRequest(message)
+            workspace.isProjectEditRequest(
+                message
+            )
 
         if (
             builderMode ||
             isNewBuild ||
             isEdit
         ) {
-            handleBuilderRequest(message)
+
+            handleBuilderRequest(
+                message
+            )
+
         } else {
-            generateAIResponse(message)
+
+            generateAIResponse(
+                message
+            )
         }
     }
 
@@ -461,13 +778,21 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     ) {
 
         val explicitType =
-            workspace.detectProjectType(message)
+            workspace.detectProjectType(
+                message
+            )
 
         val current =
             workspace.getCurrentProject()
 
         val newBuild =
-            workspace.isNewBuildRequest(message)
+            workspace.isNewBuildRequest(
+                message
+            )
+
+        // ========================================================
+        // NEW PROJECT
+        // ========================================================
 
         if (newBuild) {
 
@@ -485,7 +810,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     "BUILDER: PROJECT TYPE NEEDED"
                 )
 
-                builderMode = true
+                builderMode =
+                    true
+
                 updateBuilderButton()
 
                 return
@@ -498,11 +825,15 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 )
 
             /*
-             * ProjectWorkspace immediately creates the
-             * working starter/foundation for games.
+             * IMPORTANT PHONE-SAFE CHANGE
              *
-             * This means the playable project exists BEFORE
-             * local AI generation begins.
+             * ProjectWorkspace creates a working game foundation
+             * immediately.
+             *
+             * For a NEW game we DO NOT run the local AI here.
+             *
+             * This avoids the large inference operation that was
+             * causing Android to close Jarvis.
              */
             val project =
                 workspace.createProject(
@@ -510,13 +841,35 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     explicitType
                 )
 
-            builderMode = true
+            builderMode =
+                true
+
             updateBuilderButton()
 
+            if (
+                isGameProject(
+                    project
+                )
+            ) {
+
+                setStatus(
+                    "BUILDER: GAME READY"
+                )
+
+                addJarvisMessage(
+                    "${project.name} is ready as a " +
+                        "${projectLabel(project.type)}. " +
+                        "I created the playable foundation instantly " +
+                        "without running heavy AI generation. " +
+                        "Press PREVIEW to play it. " +
+                        "Then tell me what you want changed."
+                )
+
+                return
+            }
+
             /*
-             * The starter has already been saved here.
-             * If Android kills the AI process later, PREVIEW
-             * can still open the working project after restart.
+             * Websites can still use normal AI generation.
              */
             generateProject(
                 project,
@@ -527,12 +880,17 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             return
         }
 
+        // ========================================================
+        // EXISTING PROJECT
+        // ========================================================
+
         if (current != null) {
 
             if (
                 explicitType !=
                     JarvisProjectType.UNKNOWN &&
-                explicitType != current.type
+                explicitType !=
+                    current.type
             ) {
 
                 addJarvisMessage(
@@ -550,9 +908,14 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 return
             }
 
-            builderMode = true
+            builderMode =
+                true
+
             updateBuilderButton()
 
+            /*
+             * AI is only used for edits to an existing project.
+             */
             generateProject(
                 current,
                 message,
@@ -561,6 +924,10 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
             return
         }
+
+        // ========================================================
+        // NO CURRENT PROJECT
+        // ========================================================
 
         if (
             explicitType ==
@@ -572,7 +939,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     "2D GAME, or 3D GAME."
             )
 
-            builderMode = true
+            builderMode =
+                true
+
             updateBuilderButton()
 
             setStatus(
@@ -594,8 +963,35 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 explicitType
             )
 
-        builderMode = true
+        builderMode =
+            true
+
         updateBuilderButton()
+
+        /*
+         * Same phone-safe protection when there was no
+         * previous current project.
+         */
+        if (
+            isGameProject(
+                project
+            )
+        ) {
+
+            setStatus(
+                "BUILDER: GAME READY"
+            )
+
+            addJarvisMessage(
+                "${project.name} is ready as a " +
+                    "${projectLabel(project.type)}. " +
+                    "The playable foundation was created instantly. " +
+                    "Press PREVIEW to play it, then tell me what " +
+                    "you want changed."
+            )
+
+            return
+        }
 
         generateProject(
             project,
@@ -605,7 +1001,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     }
 
     // ============================================================
-    // FAST / SAFE BUILDER
+    // PHONE SAFE BUILDER
     // ============================================================
 
     private fun isGameProject(
@@ -621,36 +1017,37 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     }
 
     /*
-     * PHONE SAFE GENERATION LIMITS
+     * AI is NOT used for initial game creation anymore.
      *
-     * 2D GAME  = 512
-     * 3D GAME  = 512
-     * WEBSITE  = 1536
+     * These limits therefore apply mainly to edits.
      *
-     * Games already have a working foundation supplied by
-     * ProjectWorkspace. The local model only needs to generate
-     * a relatively small improvement instead of spending
-     * thousands of tokens trying to build everything.
+     * Game edits are deliberately kept small.
      */
     private fun builderTokenLimit(
         project: JarvisProject
     ): Int {
 
-        return when (project.type) {
+        return when (
+            project.type
+        ) {
 
             JarvisProjectType.GAME_2D ->
-                512
+                384
 
             JarvisProjectType.GAME_3D ->
-                512
+                384
 
             JarvisProjectType.WEBSITE ->
                 1536
 
             JarvisProjectType.UNKNOWN ->
-                512
+                384
         }
     }
+
+    // ============================================================
+    // PROJECT GENERATION / EDITING
+    // ============================================================
 
     private fun generateProject(
         project: JarvisProject,
@@ -658,11 +1055,13 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         editing: Boolean
     ) {
 
-        val model = llamaModel
+        val model =
+            llamaModel
 
         if (model == null) {
 
-            modelLoaded = false
+            modelLoaded =
+                false
 
             setStatus(
                 "SYSTEM: MODEL NOT LOADED"
@@ -671,15 +1070,48 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             return
         }
 
-        setBusy(true)
+        /*
+         * Extra protection:
+         *
+         * Even if another route accidentally tries to generate
+         * a NEW game, stop it here and use the foundation.
+         */
+        if (
+            !editing &&
+            isGameProject(project)
+        ) {
+
+            setStatus(
+                "BUILDER: GAME READY"
+            )
+
+            addJarvisMessage(
+                "${project.name} already has its working " +
+                    "${projectLabel(project.type)} foundation. " +
+                    "Press PREVIEW to play it."
+            )
+
+            return
+        }
+
+        setBusy(
+            true
+        )
 
         setStatus(
             if (editing) {
+
                 "BUILDER: UPDATING " +
-                    projectLabel(project.type)
+                    projectLabel(
+                        project.type
+                    )
+
             } else {
+
                 "BUILDER: CREATING " +
-                    projectLabel(project.type)
+                    projectLabel(
+                        project.type
+                    )
             }
         )
 
@@ -692,8 +1124,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             } else {
 
                 "Creating ${project.name} as a " +
-                    "${projectLabel(project.type)}. " +
-                    "The working foundation is already saved."
+                    "${projectLabel(project.type)}."
             }
         )
 
@@ -702,28 +1133,21 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             try {
 
                 val gameProject =
-                    isGameProject(project)
+                    isGameProject(
+                        project
+                    )
 
                 val prompt =
-                    when {
+                    if (editing) {
 
-                        editing ->
+                        workspace.createEditPrompt(
+                            project,
+                            userRequest
+                        )
 
-                            workspace.createEditPrompt(
-                                project,
-                                userRequest
-                            )
+                    } else {
 
-                        gameProject ->
-
-                            workspace.createInitialGamePrompt(
-                                project,
-                                userRequest
-                            )
-
-                        else ->
-
-                            """
+                        """
 PROJECT NAME:
 ${project.name}
 
@@ -743,7 +1167,7 @@ Keep the code compact, functional and mobile friendly.
 
                 setStatus(
                     if (gameProject) {
-                        "BUILDER: LIGHT GAME GENERATION"
+                        "BUILDER: LIGHT GAME EDIT"
                     } else {
                         "BUILDER: GENERATING"
                     }
@@ -756,7 +1180,8 @@ Keep the code compact, functional and mobile friendly.
 
                         Llama.complete(
                             model,
-                            prompt = prompt,
+                            prompt =
+                                prompt,
                             systemPrompt =
                                 workspace.builderSystemPrompt(
                                     project.type
@@ -770,39 +1195,40 @@ Keep the code compact, functional and mobile friendly.
 
                 var html =
                     workspace.extractGeneratedHtml(
-                        firstResult.text.trim()
+                        firstResult
+                            .text
+                            .trim()
                     )
 
                 // =================================================
-                // GAME FAST RECOVERY
+                // INCOMPLETE OUTPUT
                 // =================================================
 
-                /*
-                 * Do NOT ask the AI for another large response
-                 * when a game response is incomplete.
-                 *
-                 * The working foundation already exists.
-                 */
-                if (html.isNullOrBlank()) {
+                if (
+                    html.isNullOrBlank()
+                ) {
 
                     if (
-                        gameProject &&
-                        useGameFallback(project)
+                        gameProject
                     ) {
 
+                        /*
+                         * IMPORTANT:
+                         *
+                         * Do NOT overwrite an existing edited game
+                         * with the generic fallback here.
+                         *
+                         * The previous saved version remains safe.
+                         */
                         addJarvisMessage(
-                            "The AI stopped before finishing the game code, " +
-                                "so I kept the working " +
-                                "${projectLabel(project.type)} foundation. " +
-                                "Press PREVIEW to play it."
+                            "The AI edit stopped before returning complete " +
+                                "game code. I kept your previous working " +
+                                "version unchanged."
                         )
 
                         setStatus(
-                            "BUILDER: GAME READY"
+                            "BUILDER: PREVIOUS GAME KEPT"
                         )
-
-                        builderMode = true
-                        updateBuilderButton()
 
                         return@launch
                     }
@@ -827,58 +1253,43 @@ Keep the code compact, functional and mobile friendly.
 
                 var fatal =
                     problems.any {
+
                         workspace
-                            .isFatalValidationProblem(it)
+                            .isFatalValidationProblem(
+                                it
+                            )
                     }
 
                 // =================================================
-                // GAME VALIDATION RECOVERY
+                // GAME VALIDATION
                 // =================================================
 
                 /*
-                 * Games deliberately skip the second AI repair.
+                 * Never run a second AI repair on a game.
                  *
-                 * A second generation was one of the heaviest
-                 * operations in the old builder.
+                 * This is intentionally phone-safe.
                  */
                 if (
                     fatal &&
                     gameProject
                 ) {
 
-                    if (
-                        useGameFallback(project)
-                    ) {
+                    addJarvisMessage(
+                        "That game edit didn't pass validation, " +
+                            "so I kept your previous working game unchanged."
+                    )
 
-                        addJarvisMessage(
-                            "The AI-generated version didn't pass " +
-                                "game validation, so I restored the " +
-                                "working ${projectLabel(project.type)} " +
-                                "foundation automatically. " +
-                                "Press PREVIEW to test it."
-                        )
+                    setStatus(
+                        "BUILDER: PREVIOUS GAME KEPT"
+                    )
 
-                        setStatus(
-                            "BUILDER: SAFE GAME READY"
-                        )
-
-                        builderMode = true
-                        updateBuilderButton()
-
-                        return@launch
-                    }
+                    return@launch
                 }
 
                 // =================================================
                 // WEBSITE REPAIR
                 // =================================================
 
-                /*
-                 * Websites still get one repair because they
-                 * generally place less pressure on the phone.
-                 *
-                 * Repair is capped at 1024 tokens.
-                 */
                 if (
                     fatal &&
                     !gameProject
@@ -910,19 +1321,20 @@ Keep the code compact, functional and mobile friendly.
                                 prompt =
                                     repairPrompt,
                                 systemPrompt =
-                                    workspace
-                                        .builderSystemPrompt(
-                                            project.type
-                                        ),
-                                maxTokens = 1024
+                                    workspace.builderSystemPrompt(
+                                        project.type
+                                    ),
+                                maxTokens =
+                                    768
                             )
                         }
 
                     val repairedHtml =
-                        workspace
-                            .extractGeneratedHtml(
-                                repairResult.text.trim()
-                            )
+                        workspace.extractGeneratedHtml(
+                            repairResult
+                                .text
+                                .trim()
+                        )
 
                     if (
                         !repairedHtml.isNullOrBlank()
@@ -963,30 +1375,11 @@ Keep the code compact, functional and mobile friendly.
 
                 if (fatal) {
 
-                    if (
-                        gameProject &&
-                        useGameFallback(project)
-                    ) {
-
-                        addJarvisMessage(
-                            "I protected the game by restoring " +
-                                "its working ${projectLabel(project.type)} " +
-                                "foundation."
-                        )
-
-                        setStatus(
-                            "BUILDER: FALLBACK READY"
-                        )
-
-                        builderMode = true
-                        updateBuilderButton()
-
-                        return@launch
-                    }
-
                     addJarvisMessage(
                         "Validation found: " +
-                            problems.joinToString("; ") +
+                            problems.joinToString(
+                                "; "
+                            ) +
                             ". I kept your previous working version safe."
                     )
 
@@ -998,7 +1391,7 @@ Keep the code compact, functional and mobile friendly.
                 }
 
                 // =================================================
-                // SAVE SUCCESSFUL AI VERSION
+                // SAVE
                 // =================================================
 
                 workspace.saveMainFile(
@@ -1006,7 +1399,9 @@ Keep the code compact, functional and mobile friendly.
                     html
                 )
 
-                if (problems.isEmpty()) {
+                if (
+                    problems.isEmpty()
+                ) {
 
                     addJarvisMessage(
                         "${project.name} is built and saved. " +
@@ -1022,7 +1417,9 @@ Keep the code compact, functional and mobile friendly.
 
                     addJarvisMessage(
                         "${project.name} was saved with warnings: " +
-                            problems.joinToString("; ")
+                            problems.joinToString(
+                                "; "
+                            )
                     )
 
                     setStatus(
@@ -1030,37 +1427,37 @@ Keep the code compact, functional and mobile friendly.
                     )
                 }
 
-                builderMode = true
+                builderMode =
+                    true
+
                 updateBuilderButton()
 
-            } catch (e: Exception) {
-
-                // =================================================
-                // GAME EXCEPTION RECOVERY
-                // =================================================
+            } catch (
+                e: Exception
+            ) {
 
                 /*
-                 * If local inference throws an exception,
-                 * automatically recover a playable game.
+                 * Never destroy the saved project when inference fails.
                  */
                 if (
-                    isGameProject(project) &&
-                    useGameFallback(project)
+                    isGameProject(
+                        project
+                    )
                 ) {
 
                     addJarvisMessage(
-                        "Game generation stopped before completion, " +
-                            "but the working " +
-                            "${projectLabel(project.type)} " +
-                            "foundation has been recovered. " +
+                        "The AI edit stopped, but your previous working " +
+                            "${projectLabel(project.type)} is still safe. " +
                             "Press PREVIEW to continue."
                     )
 
                     setStatus(
-                        "BUILDER: RECOVERED"
+                        "BUILDER: GAME KEPT SAFE"
                     )
 
-                    builderMode = true
+                    builderMode =
+                        true
+
                     updateBuilderButton()
 
                 } else {
@@ -1080,7 +1477,9 @@ Keep the code compact, functional and mobile friendly.
 
             } finally {
 
-                setBusy(false)
+                setBusy(
+                    false
+                )
             }
         }
     }
@@ -1093,7 +1492,12 @@ Keep the code compact, functional and mobile friendly.
         project: JarvisProject
     ): Boolean {
 
-        if (!isGameProject(project)) {
+        if (
+            !isGameProject(
+                project
+            )
+        ) {
+
             return false
         }
 
@@ -1104,7 +1508,9 @@ Keep the code compact, functional and mobile friendly.
                     project
                 )
 
-            if (fallback.isNullOrBlank()) {
+            if (
+                fallback.isNullOrBlank()
+            ) {
 
                 false
 
@@ -1118,7 +1524,9 @@ Keep the code compact, functional and mobile friendly.
                 true
             }
 
-        } catch (_: Exception) {
+        } catch (
+            _: Exception
+        ) {
 
             false
         }
@@ -1147,7 +1555,9 @@ Keep the code compact, functional and mobile friendly.
                 project
             )
 
-        if (html.isNullOrBlank()) {
+        if (
+            html.isNullOrBlank()
+        ) {
 
             addJarvisMessage(
                 "The current project doesn't have a finished " +
@@ -1158,12 +1568,16 @@ Keep the code compact, functional and mobile friendly.
         }
 
         val dialog =
-            Dialog(this)
+            Dialog(
+                this
+            )
 
         val root =
             LinearLayout(this).apply {
+
                 orientation =
                     LinearLayout.VERTICAL
+
                 setBackgroundColor(
                     Color.BLACK
                 )
@@ -1171,6 +1585,7 @@ Keep the code compact, functional and mobile friendly.
 
         val topBar =
             LinearLayout(this).apply {
+
                 orientation =
                     LinearLayout.HORIZONTAL
 
@@ -1198,7 +1613,8 @@ Keep the code compact, functional and mobile friendly.
                     Color.WHITE
                 )
 
-                textSize = 14f
+                textSize =
+                    14f
 
                 setPadding(
                     dp(8),
@@ -1210,7 +1626,9 @@ Keep the code compact, functional and mobile friendly.
 
         val close =
             Button(this).apply {
-                text = "CLOSE"
+
+                text =
+                    "CLOSE"
             }
 
         topBar.addView(
@@ -1231,12 +1649,17 @@ Keep the code compact, functional and mobile friendly.
         )
 
         val webView =
-            WebView(this)
+            WebView(
+                this
+            )
 
         webView.settings.apply {
 
-            javaScriptEnabled = true
-            domStorageEnabled = true
+            javaScriptEnabled =
+                true
+
+            domStorageEnabled =
+                true
 
             mediaPlaybackRequiresUserGesture =
                 false
@@ -1282,9 +1705,13 @@ Keep the code compact, functional and mobile friendly.
         close.setOnClickListener {
 
             try {
+
                 webView.stopLoading()
                 webView.destroy()
-            } catch (_: Exception) {
+
+            } catch (
+                _: Exception
+            ) {
             }
 
             dialog.dismiss()
@@ -1293,9 +1720,13 @@ Keep the code compact, functional and mobile friendly.
         dialog.setOnDismissListener {
 
             try {
+
                 webView.stopLoading()
                 webView.destroy()
-            } catch (_: Exception) {
+
+            } catch (
+                _: Exception
+            ) {
             }
         }
 
@@ -1320,7 +1751,8 @@ Keep the code compact, functional and mobile friendly.
 
         if (model == null) {
 
-            modelLoaded = false
+            modelLoaded =
+                false
 
             setStatus(
                 "SYSTEM: MODEL NOT LOADED"
@@ -1329,7 +1761,9 @@ Keep the code compact, functional and mobile friendly.
             return
         }
 
-        setBusy(true)
+        setBusy(
+            true
+        )
 
         setStatus(
             "JARVIS: THINKING LOCALLY"
@@ -1375,7 +1809,8 @@ $message
 
                         Llama.complete(
                             model,
-                            prompt = prompt,
+                            prompt =
+                                prompt,
                             systemPrompt =
                                 "You are JARVIS, a helpful, intelligent, " +
                                     "concise private AI assistant running locally " +
@@ -1383,14 +1818,19 @@ $message
                                     "Answer naturally and directly. " +
                                     "Do not pretend you performed actions " +
                                     "you cannot perform.",
-                            maxTokens = 256
+                            maxTokens =
+                                256
                         )
                     }
 
                 val answer =
-                    result.text.trim()
+                    result
+                        .text
+                        .trim()
 
-                if (answer.isBlank()) {
+                if (
+                    answer.isBlank()
+                ) {
 
                     addJarvisMessage(
                         "I couldn't generate a response."
@@ -1418,7 +1858,9 @@ $message
                     "SYSTEM: AI READY"
                 )
 
-            } catch (e: Exception) {
+            } catch (
+                e: Exception
+            ) {
 
                 addJarvisMessage(
                     "Local AI error: " +
@@ -1434,7 +1876,9 @@ $message
 
             } finally {
 
-                setBusy(false)
+                setBusy(
+                    false
+                )
             }
         }
     }
@@ -1557,7 +2001,9 @@ $message
                 intent
             )
 
-        } catch (_: Exception) {
+        } catch (
+            _: Exception
+        ) {
 
             setStatus(
                 "VOICE INPUT UNAVAILABLE"
@@ -1646,6 +2092,7 @@ $message
         }
 
         if (modelLoaded) {
+
             return
         }
 
@@ -1681,22 +2128,30 @@ $message
                                 modelFile.absolutePath,
                             config =
                                 LlamaConfig(
+
                                     /*
-                                     * Keep context at 4096.
+                                     * Reduced from 4096 to 3072.
                                      *
-                                     * Generation output is what we
-                                     * reduced for game creation.
+                                     * This lowers memory pressure on
+                                     * Android while leaving enough
+                                     * context for chat and compact edits.
                                      */
                                     contextSize =
-                                        4096,
+                                        3072,
 
+                                    /*
+                                     * Maximum four CPU threads.
+                                     *
+                                     * This is intentionally lower than
+                                     * the previous six-thread maximum.
+                                     */
                                     threads =
                                         Runtime
                                             .getRuntime()
                                             .availableProcessors()
                                             .coerceIn(
                                                 2,
-                                                6
+                                                4
                                             )
                                 )
                         )
@@ -1720,7 +2175,9 @@ $message
                         "Chat and Builder Mode are ready."
                 )
 
-            } catch (e: Exception) {
+            } catch (
+                e: Exception
+            ) {
 
                 llamaModel =
                     null
@@ -1847,14 +2304,14 @@ $message
                 }
 
                 val contentLength =
-                    connection
-                        .contentLengthLong
+                    connection.contentLengthLong
 
                 val totalBytes =
                     if (
                         responseCode ==
                             HttpURLConnection.HTTP_PARTIAL &&
-                        contentLength > 0L
+                        contentLength >
+                            0L
                     ) {
 
                         downloaded +
@@ -1877,7 +2334,8 @@ $message
                             if (
                                 responseCode ==
                                     HttpURLConnection.HTTP_PARTIAL &&
-                                downloaded > 0L
+                                downloaded >
+                                    0L
                             ) {
 
                                 output.seek(
@@ -1910,8 +2368,10 @@ $message
                                     )
 
                                 if (
-                                    bytesRead < 0
+                                    bytesRead <
+                                    0
                                 ) {
+
                                     break
                                 }
 
@@ -1925,8 +2385,7 @@ $message
                                     bytesRead
 
                                 val now =
-                                    System
-                                        .currentTimeMillis()
+                                    System.currentTimeMillis()
 
                                 if (
                                     now -
@@ -2002,7 +2461,8 @@ $message
 
                     partialModelFile.copyTo(
                         modelFile,
-                        overwrite = true
+                        overwrite =
+                            true
                     )
 
                     partialModelFile.delete()
@@ -2028,7 +2488,9 @@ $message
                     loadLocalModel()
                 }
 
-            } catch (e: Exception) {
+            } catch (
+                e: Exception
+            ) {
 
                 runOnUiThread {
 
@@ -2088,7 +2550,8 @@ $message
                 )
 
                 if (
-                    downloaded > 0L
+                    downloaded >
+                    0L
                 ) {
 
                     setRequestProperty(
@@ -2109,7 +2572,9 @@ $message
         type: JarvisProjectType
     ): String {
 
-        return when (type) {
+        return when (
+            type
+        ) {
 
             JarvisProjectType.WEBSITE ->
                 "WEBSITE"
@@ -2179,7 +2644,9 @@ $message
         val model =
             llamaModel
 
-        if (model != null) {
+        if (
+            model != null
+        ) {
 
             Thread {
 
@@ -2193,7 +2660,9 @@ $message
                             )
                         }
 
-                } catch (_: Exception) {
+                } catch (
+                    _: Exception
+                ) {
                 }
 
             }.start()
