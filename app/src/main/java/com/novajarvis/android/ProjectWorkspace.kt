@@ -26,55 +26,27 @@ class ProjectWorkspace(
 ) {
 
     companion object {
+        private const val PREFS_NAME = "jarvis_builder"
 
-        private const val PREFS_NAME =
-            "jarvis_builder"
+        private const val CURRENT_PROJECT_ID = "current_project_id"
+        private const val CURRENT_PROJECT_TYPE = "current_project_type"
+        private const val CURRENT_PROJECT_NAME = "current_project_name"
 
-        // Project currently being built / edited
-        private const val CURRENT_PROJECT_ID =
-            "current_project_id"
+        private const val PREVIEW_PROJECT_ID = "preview_project_id"
+        private const val PREVIEW_PROJECT_TYPE = "preview_project_type"
+        private const val PREVIEW_PROJECT_NAME = "preview_project_name"
 
-        private const val CURRENT_PROJECT_TYPE =
-            "current_project_type"
+        private const val BUILD_IN_PROGRESS = "build_in_progress"
+        private const val BUILD_PROJECT_ID = "build_project_id"
+        private const val BUILD_PROJECT_TYPE = "build_project_type"
+        private const val BUILD_PROJECT_NAME = "build_project_name"
 
-        private const val CURRENT_PROJECT_NAME =
-            "current_project_name"
-
-        // Last project that successfully passed validation
-        private const val PREVIEW_PROJECT_ID =
-            "preview_project_id"
-
-        private const val PREVIEW_PROJECT_TYPE =
-            "preview_project_type"
-
-        private const val PREVIEW_PROJECT_NAME =
-            "preview_project_name"
-
-        // Build recovery
-        private const val BUILD_IN_PROGRESS =
-            "build_in_progress"
-
-        private const val BUILD_PROJECT_ID =
-            "build_project_id"
-
-        private const val BUILD_PROJECT_TYPE =
-            "build_project_type"
-
-        private const val BUILD_PROJECT_NAME =
-            "build_project_name"
-
-        private const val PROJECT_INFO_FILE =
-            "jarvis.project"
-
-        private const val INDEX_FILE =
-            "index.html"
-
-        private const val TEMP_INDEX_FILE =
-            "index.html.tmp"
+        private const val PROJECT_INFO_FILE = "jarvis.project"
+        private const val INDEX_FILE = "index.html"
+        private const val TEMP_INDEX_FILE = "index.html.tmp"
     }
 
     private val prefs by lazy {
-
         context.getSharedPreferences(
             PREFS_NAME,
             Context.MODE_PRIVATE
@@ -82,12 +54,10 @@ class ProjectWorkspace(
     }
 
     private val projectsRoot by lazy {
-
         File(
             context.filesDir,
             "jarvis_projects"
         ).apply {
-
             mkdirs()
         }
     }
@@ -102,9 +72,7 @@ class ProjectWorkspace(
 
         val text =
             request
-                .lowercase(
-                    Locale.getDefault()
-                )
+                .lowercase(Locale.getDefault())
                 .trim()
 
         val explicit3D =
@@ -133,31 +101,6 @@ class ProjectWorkspace(
                 "side-scroller"
             )
 
-        if (
-            explicit3D.any {
-                text.contains(it)
-            }
-        ) {
-
-            return JarvisProjectType.GAME_3D
-        }
-
-        if (
-            explicit2D.any {
-                text.contains(it)
-            }
-        ) {
-
-            return JarvisProjectType.GAME_2D
-        }
-
-        if (
-            text.contains("game")
-        ) {
-
-            return JarvisProjectType.UNKNOWN
-        }
-
         val websites =
             listOf(
                 "website",
@@ -169,13 +112,58 @@ class ProjectWorkspace(
                 "business site"
             )
 
-        if (
+        val has3D =
+            explicit3D.any {
+                text.contains(it)
+            }
+
+        val has2D =
+            explicit2D.any {
+                text.contains(it)
+            }
+
+        val hasWebsite =
             websites.any {
                 text.contains(it)
             }
-        ) {
 
+        /*
+         * If a prompt contains several project types, don't guess.
+         *
+         * This prevents source-code repair instructions mentioning
+         * WEBSITE + 2D + 3D from accidentally starting a 3D game.
+         */
+        val explicitCount =
+            listOf(
+                has3D,
+                has2D,
+                hasWebsite
+            ).count {
+                it
+            }
+
+        if (explicitCount > 1) {
+            return JarvisProjectType.UNKNOWN
+        }
+
+        if (has3D) {
+            return JarvisProjectType.GAME_3D
+        }
+
+        if (has2D) {
+            return JarvisProjectType.GAME_2D
+        }
+
+        if (hasWebsite) {
             return JarvisProjectType.WEBSITE
+        }
+
+        /*
+         * A request that only says "game" is ambiguous.
+         * JARVIS should ask 2D or 3D instead of guessing.
+         */
+        if (text.contains("game")) {
+            return JarvisProjectType.UNKNOWN
         }
 
         return JarvisProjectType.UNKNOWN
@@ -191,9 +179,7 @@ class ProjectWorkspace(
 
         val text =
             request
-                .lowercase(
-                    Locale.getDefault()
-                )
+                .lowercase(Locale.getDefault())
                 .trim()
 
         val current =
@@ -211,9 +197,13 @@ class ProjectWorkspace(
                 "start another",
                 "new website",
                 "new web site",
+                "new webpage",
+                "new web page",
+                "new landing page",
                 "new 2d game",
                 "new 3d game",
                 "another website",
+                "another web page",
                 "another 2d game",
                 "another 3d game",
                 "separate website",
@@ -222,12 +212,10 @@ class ProjectWorkspace(
             )
 
         if (
-            current != null &&
             explicitNew.any {
                 text.contains(it)
             }
         ) {
-
             return true
         }
 
@@ -266,14 +254,10 @@ class ProjectWorkspace(
                 text.contains(it)
             }
         ) {
-
             return false
         }
 
-        if (
-            current != null
-        ) {
-
+        if (current != null) {
             return false
         }
 
@@ -293,6 +277,7 @@ class ProjectWorkspace(
                 "web site",
                 "webpage",
                 "web page",
+                "landing page",
                 "game",
                 "2d",
                 "3d",
@@ -313,18 +298,13 @@ class ProjectWorkspace(
         request: String
     ): Boolean {
 
-        if (
-            getCurrentProject() == null
-        ) {
-
+        if (getCurrentProject() == null) {
             return false
         }
 
         val text =
             request
-                .lowercase(
-                    Locale.getDefault()
-                )
+                .lowercase(Locale.getDefault())
                 .trim()
 
         val explicitNew =
@@ -338,6 +318,9 @@ class ProjectWorkspace(
                 "start a new",
                 "start another",
                 "new website",
+                "new web site",
+                "new webpage",
+                "new web page",
                 "new 2d game",
                 "new 3d game",
                 "another website",
@@ -351,7 +334,6 @@ class ProjectWorkspace(
                 text.contains(it)
             }
         ) {
-
             return false
         }
 
@@ -392,7 +374,6 @@ class ProjectWorkspace(
                 text.contains(it)
             }
         ) {
-
             return true
         }
 
@@ -407,7 +388,6 @@ class ProjectWorkspace(
             "my website",
             "my game"
         ).any {
-
             text.contains(it)
         }
     }
@@ -436,20 +416,16 @@ class ProjectWorkspace(
                 .toString()
                 .take(8)
 
-        val typeFolder =
-            typeFolder(type)
-
         val directory =
             File(
                 projectsRoot,
-                "$typeFolder/${safeName}_$id"
+                "${typeFolder(type)}/${safeName}_$id"
             )
 
         if (
             !directory.exists() &&
             !directory.mkdirs()
         ) {
-
             throw IllegalStateException(
                 "Could not create project directory"
             )
@@ -472,66 +448,43 @@ class ProjectWorkspace(
             project
         )
 
-        /*
-         * CURRENT means:
-         *
-         * This is the project JARVIS is currently working on.
-         *
-         * It does NOT automatically mean Preview should open it.
-         */
         setCurrentProject(
             project
         )
 
         /*
-         * Games get an immediate verified foundation.
+         * Games have a safe instant foundation.
          *
-         * Websites do NOT become previewable until generation,
-         * validation and save have completed successfully.
+         * Websites intentionally do not get index.html until
+         * generation has completed and validation has passed.
          */
         when (type) {
 
             JarvisProjectType.GAME_2D -> {
-
-                val foundation =
-                    create2DGameFoundation(
+                saveMainFileAtomic(
+                    project = project,
+                    html = create2DGameFoundation(
                         displayName(
                             safeName
                         )
-                    )
-
-                saveMainFileAtomic(
-                    project,
-                    foundation,
+                    ),
                     makePreviewable = true
                 )
             }
 
             JarvisProjectType.GAME_3D -> {
-
-                val foundation =
-                    create3DGameFoundation(
+                saveMainFileAtomic(
+                    project = project,
+                    html = create3DGameFoundation(
                         displayName(
                             safeName
                         )
-                    )
-
-                saveMainFileAtomic(
-                    project,
-                    foundation,
+                    ),
                     makePreviewable = true
                 )
             }
 
-            JarvisProjectType.WEBSITE -> {
-
-                /*
-                 * Deliberately no index.html yet.
-                 *
-                 * This prevents an unfinished website from
-                 * replacing the last successful preview.
-                 */
-            }
+            JarvisProjectType.WEBSITE -> Unit
 
             JarvisProjectType.UNKNOWN -> Unit
         }
@@ -575,7 +528,7 @@ class ProjectWorkspace(
     }
 
     // ============================================================
-    // VERIFIED PREVIEW PROJECT
+    // VERIFIED PREVIEW
     // ============================================================
 
     fun setPreviewProject(
@@ -585,12 +538,9 @@ class ProjectWorkspace(
         val html =
             readMainFile(
                 project
-            )
+            ) ?: return
 
-        if (
-            html.isNullOrBlank()
-        ) {
-
+        if (html.isBlank()) {
             return
         }
 
@@ -599,14 +549,12 @@ class ProjectWorkspace(
                 project,
                 html
             ).any {
-
                 isFatalValidationProblem(
                     it
                 )
             }
 
         if (fatal) {
-
             return
         }
 
@@ -642,10 +590,7 @@ class ProjectWorkspace(
                 project
             ) ?: return null
 
-        if (
-            html.isBlank()
-        ) {
-
+        if (html.isBlank()) {
             return null
         }
 
@@ -654,18 +599,14 @@ class ProjectWorkspace(
                 project,
                 html
             ).any {
-
                 isFatalValidationProblem(
                     it
                 )
             }
 
         return if (fatal) {
-
             null
-
         } else {
-
             project
         }
     }
@@ -684,14 +625,12 @@ class ProjectWorkspace(
                 project,
                 html
             ).any {
-
                 isFatalValidationProblem(
                     it
                 )
             }
 
         if (fatal) {
-
             return false
         }
 
@@ -707,7 +646,7 @@ class ProjectWorkspace(
     }
 
     // ============================================================
-    // BUILD SESSION / CRASH RECOVERY
+    // BUILD / CRASH RECOVERY
     // ============================================================
 
     fun beginBuild(
@@ -715,10 +654,9 @@ class ProjectWorkspace(
     ) {
 
         /*
-         * commit() is intentional here.
+         * commit() is intentional.
          *
-         * Build state should reach disk immediately before
-         * expensive local inference starts.
+         * The marker reaches disk before local AI inference starts.
          */
         prefs
             .edit()
@@ -747,28 +685,12 @@ class ProjectWorkspace(
     ) {
 
         if (successful) {
-
             markProjectVerified(
                 project
             )
         }
 
-        prefs
-            .edit()
-            .putBoolean(
-                BUILD_IN_PROGRESS,
-                false
-            )
-            .remove(
-                BUILD_PROJECT_ID
-            )
-            .remove(
-                BUILD_PROJECT_TYPE
-            )
-            .remove(
-                BUILD_PROJECT_NAME
-            )
-            .commit()
+        clearInterruptedBuild()
     }
 
     fun wasBuildInterrupted():
@@ -783,10 +705,7 @@ class ProjectWorkspace(
     fun getInterruptedProject():
         JarvisProject? {
 
-        if (
-            !wasBuildInterrupted()
-        ) {
-
+        if (!wasBuildInterrupted()) {
             return null
         }
 
@@ -847,15 +766,12 @@ class ProjectWorkspace(
 
         val type =
             try {
-
                 JarvisProjectType.valueOf(
                     typeName
                 )
-
             } catch (
                 _: Exception
             ) {
-
                 return null
             }
 
@@ -876,7 +792,6 @@ class ProjectWorkspace(
             type ==
             JarvisProjectType.UNKNOWN
         ) {
-
             return null
         }
 
@@ -886,10 +801,7 @@ class ProjectWorkspace(
                 "${typeFolder(type)}/${name}_$id"
             )
 
-        if (
-            !directory.exists()
-        ) {
-
+        if (!directory.exists()) {
             return null
         }
 
@@ -922,7 +834,7 @@ class ProjectWorkspace(
     }
 
     // ============================================================
-    // SAFE PROJECT FILES
+    // SAFE FILE SAVING
     // ============================================================
 
     fun saveMainFile(
@@ -931,8 +843,8 @@ class ProjectWorkspace(
     ): File {
 
         return saveMainFileAtomic(
-            project,
-            html,
+            project = project,
+            html = html,
             makePreviewable = true
         )
     }
@@ -947,12 +859,7 @@ class ProjectWorkspace(
             html.isNotBlank()
         )
 
-        if (
-            !project.directory.exists()
-        ) {
-
-            project.directory.mkdirs()
-        }
+        project.directory.mkdirs()
 
         val index =
             File(
@@ -966,20 +873,12 @@ class ProjectWorkspace(
                 TEMP_INDEX_FILE
             )
 
-        /*
-         * Back up only the existing successful file.
-         */
         backupCurrentVersion(
             project
         )
 
         try {
 
-            /*
-             * Write to temporary file first.
-             *
-             * If Android dies here, the old index.html remains.
-             */
             temp.writeText(
                 html
             )
@@ -988,26 +887,13 @@ class ProjectWorkspace(
                 !temp.exists() ||
                 temp.length() <= 0L
             ) {
-
                 throw IllegalStateException(
                     "Temporary project file was not written"
                 )
             }
 
-            /*
-             * Validate what was actually written to disk.
-             */
             val written =
                 temp.readText()
-
-            if (
-                written.isBlank()
-            ) {
-
-                throw IllegalStateException(
-                    "Temporary project file is empty"
-                )
-            }
 
             val problems =
                 validateProject(
@@ -1017,42 +903,35 @@ class ProjectWorkspace(
 
             val fatal =
                 problems.any {
-
                     isFatalValidationProblem(
                         it
                     )
                 }
 
             if (fatal) {
-
                 throw IllegalStateException(
-                    "Project failed validation: " +
+                    "Project failed validation: ${
                         problems.joinToString(
                             "; "
                         )
+                    }"
                 )
             }
 
             /*
-             * Replace index only after the temporary version
-             * has passed validation.
+             * Keep another emergency copy of the previous file.
              */
-            if (
-                index.exists()
-            ) {
-
-                val old =
-                    File(
-                        project.directory,
-                        "index.html.old"
-                    )
+            if (index.exists()) {
 
                 try {
 
-                    if (
-                        old.exists()
-                    ) {
+                    val old =
+                        File(
+                            project.directory,
+                            "index.html.old"
+                        )
 
+                    if (old.exists()) {
                         old.delete()
                     }
 
@@ -1064,17 +943,15 @@ class ProjectWorkspace(
                 } catch (
                     _: Exception
                 ) {
+                    // Backup failure must not destroy a valid new build.
                 }
             }
 
-            val renamed =
-                temp.renameTo(
-                    index
-                )
-
-            if (
-                !renamed
-            ) {
+            /*
+             * Rename is preferred because it avoids exposing a
+             * partially-written index.html.
+             */
+            if (!temp.renameTo(index)) {
 
                 temp.copyTo(
                     index,
@@ -1088,7 +965,6 @@ class ProjectWorkspace(
                 !index.exists() ||
                 index.length() <= 0L
             ) {
-
                 throw IllegalStateException(
                     "Final project file could not be saved"
                 )
@@ -1098,10 +974,7 @@ class ProjectWorkspace(
                 project
             )
 
-            if (
-                makePreviewable
-            ) {
-
+            if (makePreviewable) {
                 setPreviewProject(
                     project
                 )
@@ -1114,12 +987,11 @@ class ProjectWorkspace(
         ) {
 
             try {
-
                 temp.delete()
-
             } catch (
                 _: Exception
             ) {
+                // Ignore cleanup failure.
             }
 
             throw error
@@ -1140,18 +1012,14 @@ class ProjectWorkspace(
             !file.exists() ||
             file.length() <= 0L
         ) {
-
             return null
         }
 
         return try {
-
             file.readText()
-
         } catch (
             _: Exception
         ) {
-
             null
         }
     }
@@ -1163,13 +1031,15 @@ class ProjectWorkspace(
             getCurrentProject()
                 ?: return null
 
-        return File(
-            project.directory,
-            INDEX_FILE
-        ).takeIf {
+        val file =
+            File(
+                project.directory,
+                INDEX_FILE
+            )
 
+        return file.takeIf {
             it.exists() &&
-                it.length() > 0L
+            it.length() > 0L
         }
     }
 
@@ -1180,19 +1050,17 @@ class ProjectWorkspace(
             getPreviewProject()
                 ?: return null
 
-        return File(
-            project.directory,
-            INDEX_FILE
-        ).takeIf {
+        val file =
+            File(
+                project.directory,
+                INDEX_FILE
+            )
 
+        return file.takeIf {
             it.exists() &&
-                it.length() > 0L
+            it.length() > 0L
         }
     }
-
-    // ============================================================
-    // BACKUPS
-    // ============================================================
 
     private fun backupCurrentVersion(
         project: JarvisProject
@@ -1208,7 +1076,6 @@ class ProjectWorkspace(
             !current.exists() ||
             current.length() <= 0L
         ) {
-
             return
         }
 
@@ -1217,30 +1084,24 @@ class ProjectWorkspace(
                 project.directory,
                 "backups"
             ).apply {
-
                 mkdirs()
             }
 
-        val formatter =
+        val stamp =
             SimpleDateFormat(
                 "yyyyMMdd_HHmmss_SSS",
                 Locale.US
-            )
-
-        val backup =
-            File(
-                backupDirectory,
-                "index_${
-                    formatter.format(
-                        Date()
-                    )
-                }.html"
+            ).format(
+                Date()
             )
 
         try {
 
             current.copyTo(
-                backup,
+                File(
+                    backupDirectory,
+                    "index_$stamp.html"
+                ),
                 overwrite = false
             )
 
@@ -1251,6 +1112,7 @@ class ProjectWorkspace(
         } catch (
             _: Exception
         ) {
+            // A failed backup should not crash the app.
         }
     }
 
@@ -1258,50 +1120,42 @@ class ProjectWorkspace(
         directory: File
     ) {
 
-        val backups =
-            directory
-                .listFiles()
-                ?.filter {
-
-                    it.isFile &&
-                        it.extension.equals(
-                            "html",
-                            true
-                        )
-                }
-                ?.sortedByDescending {
-
-                    it.lastModified()
-                }
-                ?: return
-
-        backups
-            .drop(10)
-            .forEach {
+        directory
+            .listFiles()
+            ?.filter {
+                it.isFile &&
+                it.extension.equals(
+                    "html",
+                    ignoreCase = true
+                )
+            }
+            ?.sortedByDescending {
+                it.lastModified()
+            }
+            ?.drop(
+                10
+            )
+            ?.forEach {
 
                 try {
-
                     it.delete()
-
                 } catch (
                     _: Exception
                 ) {
+                    // Ignore cleanup errors.
                 }
             }
     }
 
     // ============================================================
-    // AI OUTPUT
+    // AI OUTPUT EXTRACTION
     // ============================================================
 
     fun extractGeneratedHtml(
         output: String
     ): String? {
 
-        if (
-            output.isBlank()
-        ) {
-
+        if (output.isBlank()) {
             return null
         }
 
@@ -1310,15 +1164,16 @@ class ProjectWorkspace(
                 "(?s)<JARVIS_FILE>\\s*(.*?)\\s*</JARVIS_FILE>",
                 RegexOption.IGNORE_CASE
             )
-                .find(output)
+                .find(
+                    output
+                )
                 ?.groupValues
-                ?.getOrNull(1)
+                ?.getOrNull(
+                    1
+                )
                 ?.trim()
 
-        if (
-            !tagged.isNullOrBlank()
-        ) {
-
+        if (!tagged.isNullOrBlank()) {
             return tagged
         }
 
@@ -1327,15 +1182,16 @@ class ProjectWorkspace(
                 "(?s)```(?:html)?\\s*(.*?)\\s*```",
                 RegexOption.IGNORE_CASE
             )
-                .find(output)
+                .find(
+                    output
+                )
                 ?.groupValues
-                ?.getOrNull(1)
+                ?.getOrNull(
+                    1
+                )
                 ?.trim()
 
-        if (
-            !fenced.isNullOrBlank()
-        ) {
-
+        if (!fenced.isNullOrBlank()) {
             return fenced
         }
 
@@ -1345,10 +1201,7 @@ class ProjectWorkspace(
                 ignoreCase = true
             )
 
-        if (
-            doctype >= 0
-        ) {
-
+        if (doctype >= 0) {
             return output
                 .substring(
                     doctype
@@ -1362,10 +1215,7 @@ class ProjectWorkspace(
                 ignoreCase = true
             )
 
-        if (
-            html >= 0
-        ) {
-
+        if (html >= 0) {
             return output
                 .substring(
                     html
@@ -1397,45 +1247,49 @@ class ProjectWorkspace(
             !lower.contains("<html") &&
             !lower.contains("<!doctype")
         ) {
-
             problems.add(
                 "Missing HTML document structure."
             )
         }
 
-        if (
-            !lower.contains("<body")
-        ) {
-
+        if (!lower.contains("<body")) {
             problems.add(
                 "Missing BODY element."
             )
         }
 
-        if (
-            !lower.contains("</html>")
-        ) {
+        /*
+         * Important:
+         * truncated AI output commonly contains <body>
+         * but never reaches </body>.
+         */
+        if (!lower.contains("</body>")) {
+            problems.add(
+                "Missing closing BODY element."
+            )
+        }
 
+        if (!lower.contains("</html>")) {
             problems.add(
                 "Missing closing HTML element."
             )
         }
 
-        when (
-            project.type
-        ) {
+        when (project.type) {
 
             JarvisProjectType.WEBSITE -> {
 
+                val viewport =
+                    Regex(
+                        """<meta\s+[^>]*name\s*=\s*["']viewport["'][^>]*>""",
+                        RegexOption.IGNORE_CASE
+                    )
+
                 if (
-                    !lower.contains(
-                        "<meta name=\"viewport\""
-                    ) &&
-                    !lower.contains(
-                        "<meta name='viewport'"
+                    !viewport.containsMatchIn(
+                        html
                     )
                 ) {
-
                     problems.add(
                         "Website is missing a mobile viewport."
                     )
@@ -1444,23 +1298,13 @@ class ProjectWorkspace(
 
             JarvisProjectType.GAME_2D -> {
 
-                if (
-                    !lower.contains(
-                        "<canvas"
-                    )
-                ) {
-
+                if (!lower.contains("<canvas")) {
                     problems.add(
                         "2D game has no Canvas."
                     )
                 }
 
-                if (
-                    !lower.contains(
-                        "<script"
-                    )
-                ) {
-
+                if (!lower.contains("<script")) {
                     problems.add(
                         "2D game has no game script."
                     )
@@ -1471,7 +1315,6 @@ class ProjectWorkspace(
                         "requestanimationframe"
                     )
                 ) {
-
                     problems.add(
                         "2D game has no animation/game loop."
                     )
@@ -1484,20 +1327,17 @@ class ProjectWorkspace(
                     lower.contains(
                         "three.module"
                     ) ||
-                        lower.contains(
-                            "three.min"
-                        ) ||
-                        lower.contains(
-                            "from 'three'"
-                        ) ||
-                        lower.contains(
-                            "from \"three\""
-                        )
+                    lower.contains(
+                        "three.min"
+                    ) ||
+                    lower.contains(
+                        "from 'three'"
+                    ) ||
+                    lower.contains(
+                        "from \"three\""
+                    )
 
-                if (
-                    !hasThree
-                ) {
-
+                if (!hasThree) {
                     problems.add(
                         "3D game has no Three.js engine."
                     )
@@ -1508,7 +1348,6 @@ class ProjectWorkspace(
                         "requestanimationframe"
                     )
                 ) {
-
                     problems.add(
                         "3D game has no animation/game loop."
                     )
@@ -1516,7 +1355,6 @@ class ProjectWorkspace(
             }
 
             JarvisProjectType.UNKNOWN -> {
-
                 problems.add(
                     "Project type is unknown."
                 )
@@ -1539,7 +1377,15 @@ class ProjectWorkspace(
                 ignoreCase = true
             ) ||
             problem.contains(
+                "Missing closing BODY",
+                ignoreCase = true
+            ) ||
+            problem.contains(
                 "Missing closing HTML",
+                ignoreCase = true
+            ) ||
+            problem.contains(
+                "mobile viewport",
                 ignoreCase = true
             ) ||
             problem.contains(
@@ -1557,7 +1403,231 @@ class ProjectWorkspace(
             problem.contains(
                 "no Three.js",
                 ignoreCase = true
+            ) ||
+            problem.contains(
+                "type is unknown",
+                ignoreCase = true
             )
+    }
+
+    // ============================================================
+    // BUILDER SYSTEM PROMPT
+    // ============================================================
+
+    fun builderSystemPrompt(
+        type: JarvisProjectType
+    ): String {
+
+        return when (type) {
+
+            JarvisProjectType.WEBSITE -> """
+You are JARVIS BUILDER.
+Return exactly one complete compact runnable index.html inside <JARVIS_FILE>...</JARVIS_FILE>.
+No markdown, explanations, TODOs, placeholders or omitted code.
+Build the minimum complete working page first.
+Only add optional visual detail if output space remains.
+Use concise mobile-friendly HTML and CSS.
+Use minimal JavaScript only when necessary.
+Do not use frameworks, large SVGs, base64 assets or unnecessary external assets.
+Include a mobile viewport.
+Always finish the complete document with </body> and </html>.
+""".trimIndent()
+
+            JarvisProjectType.GAME_2D -> """
+You are JARVIS BUILDER.
+PROJECT TYPE: 2D GAME.
+Return one complete compact index.html inside <JARVIS_FILE>...</JARVIS_FILE>.
+Preserve the existing Canvas, requestAnimationFrame loop, touch controls, keyboard controls and restart handling.
+Modify the existing working foundation instead of rebuilding it.
+Preserve working features.
+No markdown or explanations.
+Always include </body> and </html>.
+""".trimIndent()
+
+            JarvisProjectType.GAME_3D -> """
+You are JARVIS BUILDER.
+PROJECT TYPE: 3D GAME.
+Return one complete compact index.html inside <JARVIS_FILE>...</JARVIS_FILE>.
+Preserve Three.js, scene, camera, renderer, lighting, requestAnimationFrame, resize handling and touch controls.
+Modify the existing working foundation instead of rebuilding it.
+Preserve working features.
+No markdown or explanations.
+Always include </body> and </html>.
+""".trimIndent()
+
+            JarvisProjectType.UNKNOWN -> """
+You are JARVIS BUILDER.
+The project type is unknown.
+Ask whether the user wants a WEBSITE, 2D GAME or 3D GAME.
+""".trimIndent()
+        }
+    }
+
+    // ============================================================
+    // EDIT PROMPT
+    // ============================================================
+
+    fun createEditPrompt(
+        project: JarvisProject,
+        userRequest: String
+    ): String {
+
+        val existing =
+            readMainFile(
+                project
+            )
+                ?: when (project.type) {
+
+                    JarvisProjectType.GAME_2D ->
+                        create2DGameFoundation(
+                            displayName(
+                                project.name
+                            )
+                        )
+
+                    JarvisProjectType.GAME_3D ->
+                        create3DGameFoundation(
+                            displayName(
+                                project.name
+                            )
+                        )
+
+                    else ->
+                        ""
+                }
+
+        return """
+EDIT CURRENT ${project.type.name} PROJECT: ${project.name}
+REQUEST: $userRequest
+Preserve working features and project type.
+Return the complete compact index.html, including </body></html>.
+<JARVIS_EXISTING_FILE>
+$existing
+</JARVIS_EXISTING_FILE>
+""".trimIndent()
+    }
+
+    // ============================================================
+    // INITIAL GAME PROMPT
+    // ============================================================
+
+    fun createInitialGamePrompt(
+        project: JarvisProject,
+        userRequest: String
+    ): String {
+
+        val foundation =
+            when (project.type) {
+
+                JarvisProjectType.GAME_2D ->
+                    create2DGameFoundation(
+                        displayName(
+                            project.name
+                        )
+                    )
+
+                JarvisProjectType.GAME_3D ->
+                    create3DGameFoundation(
+                        displayName(
+                            project.name
+                        )
+                    )
+
+                else ->
+                    ""
+            }
+
+        return """
+BUILD ${project.type.name}:
+$userRequest
+
+Modify this working foundation.
+Preserve the engine, controls and animation loop.
+Return one complete compact index.html.
+
+<JARVIS_EXISTING_FILE>
+$foundation
+</JARVIS_EXISTING_FILE>
+""".trimIndent()
+    }
+
+    // ============================================================
+    // FALLBACK
+    // ============================================================
+
+    fun workingFallback(
+        project: JarvisProject
+    ): String? {
+
+        val existing =
+            readMainFile(
+                project
+            )
+
+        if (existing != null) {
+
+            val fatal =
+                validateProject(
+                    project,
+                    existing
+                ).any {
+                    isFatalValidationProblem(
+                        it
+                    )
+                }
+
+            if (!fatal) {
+                return existing
+            }
+        }
+
+        return when (project.type) {
+
+            JarvisProjectType.GAME_2D ->
+                create2DGameFoundation(
+                    displayName(
+                        project.name
+                    )
+                )
+
+            JarvisProjectType.GAME_3D ->
+                create3DGameFoundation(
+                    displayName(
+                        project.name
+                    )
+                )
+
+            else ->
+                null
+        }
+    }
+
+    /*
+     * Kept for compatibility with any existing caller.
+     *
+     * MainActivity should NOT perform a second expensive LLM pass
+     * automatically after a failed generation.
+     */
+    fun createRepairPrompt(
+        project: JarvisProject,
+        brokenHtml: String,
+        problems: List<String>
+    ): String {
+
+        return """
+Repair this ${project.type.name} project.
+
+ERRORS:
+${problems.joinToString("; ")}
+
+Return ONE complete compact index.html.
+Finish the document with </body> and </html>.
+No explanation.
+
+<JARVIS_BROKEN_FILE>
+$brokenHtml
+</JARVIS_BROKEN_FILE>
+""".trimIndent()
     }
 
     // ============================================================
@@ -1580,27 +1650,84 @@ class ProjectWorkspace(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>$safeTitle</title>
+
 <style>
 *{box-sizing:border-box}
-html,body{margin:0;background:#050b12;color:#fff;font-family:Arial,sans-serif;overscroll-behavior:none}
-body{min-height:100%;display:flex;justify-content:center;padding:12px;touch-action:manipulation}
-#shell{width:min(100%,760px)}
-#top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-#title{font-weight:800;font-size:18px}
-#wrap{position:relative;background:#081521;border:1px solid #1f5168;border-radius:14px;overflow:hidden}
-canvas{display:block;width:100%;height:auto;aspect-ratio:16/10;background:#071019;touch-action:none}
-#message{position:absolute;left:10px;right:10px;top:10px;text-align:center;font-weight:700;pointer-events:none}
-#controls{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
-button{min-height:52px;border:1px solid #39d9ff;border-radius:12px;background:#0b1c29;color:#fff;font-size:18px;font-weight:800}
-#restart{width:100%;margin-top:8px}
+html,body{
+ margin:0;
+ background:#050b12;
+ color:#fff;
+ font-family:Arial,sans-serif;
+ overscroll-behavior:none
+}
+body{
+ min-height:100vh;
+ display:flex;
+ justify-content:center;
+ padding:12px;
+ touch-action:manipulation
+}
+#shell{
+ width:min(100%,760px)
+}
+#top{
+ display:flex;
+ justify-content:space-between;
+ align-items:center;
+ margin-bottom:8px
+}
+#wrap{
+ position:relative;
+ background:#081521;
+ border:1px solid #1f5168;
+ border-radius:14px;
+ overflow:hidden
+}
+canvas{
+ display:block;
+ width:100%;
+ height:auto;
+ aspect-ratio:16/10;
+ background:#071019;
+ touch-action:none
+}
+#message{
+ position:absolute;
+ left:10px;
+ right:10px;
+ top:10px;
+ text-align:center;
+ font-weight:700;
+ pointer-events:none
+}
+#controls{
+ display:grid;
+ grid-template-columns:repeat(3,1fr);
+ gap:8px;
+ margin-top:10px
+}
+button{
+ min-height:52px;
+ border:1px solid #39d9ff;
+ border-radius:12px;
+ background:#0b1c29;
+ color:#fff;
+ font-size:18px;
+ font-weight:800
+}
+#restart{
+ width:100%;
+ margin-top:8px
+}
 </style>
 </head>
+
 <body>
 
 <div id="shell">
 
 <div id="top">
-<div id="title">$safeTitle</div>
+<b>$safeTitle</b>
 <div>Score: <span id="score">0</span></div>
 </div>
 
@@ -1613,6 +1740,7 @@ button{min-height:52px;border:1px solid #39d9ff;border-radius:12px;background:#0
 <button id="left">◀</button>
 <button id="up">▲</button>
 <button id="right">▶</button>
+
 <button id="down">▼</button>
 <button id="action">ACTION</button>
 <button id="pause">PAUSE</button>
@@ -1623,87 +1751,154 @@ button{min-height:52px;border:1px solid #39d9ff;border-radius:12px;background:#0
 </div>
 
 <script>
-const canvas=document.getElementById('game');
-const ctx=canvas.getContext('2d');
-const scoreEl=document.getElementById('score');
-const messageEl=document.getElementById('message');
+const canvas =
+ document.getElementById('game');
 
-const keys={
+const ctx =
+ canvas.getContext('2d');
+
+const scoreEl =
+ document.getElementById('score');
+
+const messageEl =
+ document.getElementById('message');
+
+const keys = {
  left:false,
  right:false,
  up:false,
  down:false
 };
 
-let score=0;
-let paused=false;
-let last=performance.now();
+let score = 0;
+let paused = false;
+let last = performance.now();
 
-const player={
+const player = {
  x:100,
  y:250,
  r:20,
  speed:260
 };
 
-const coin={
+const coin = {
  x:500,
  y:250,
  r:13
 };
 
 function randomCoin(){
- coin.x=coin.r+Math.random()*(canvas.width-coin.r*2);
- coin.y=coin.r+Math.random()*(canvas.height-coin.r*2);
+
+ coin.x =
+  coin.r +
+  Math.random() *
+  (canvas.width - coin.r * 2);
+
+ coin.y =
+  coin.r +
+  Math.random() *
+  (canvas.height - coin.r * 2);
 }
 
 function resetGame(){
- score=0;
- scoreEl.textContent='0';
- player.x=100;
- player.y=250;
- paused=false;
- messageEl.textContent='Collect the yellow coins';
+
+ score = 0;
+
+ scoreEl.textContent =
+  '0';
+
+ player.x = 100;
+ player.y = 250;
+
+ paused = false;
+
+ messageEl.textContent =
+  'Collect the yellow coins';
+
  randomCoin();
 }
 
 function update(dt){
 
- if(paused)return;
-
- let dx=0;
- let dy=0;
-
- if(keys.left)dx--;
- if(keys.right)dx++;
- if(keys.up)dy--;
- if(keys.down)dy++;
-
- if(dx||dy){
-
-  const len=Math.hypot(dx,dy)||1;
-
-  player.x+=dx/len*player.speed*dt;
-  player.y+=dy/len*player.speed*dt;
+ if(paused){
+  return;
  }
 
- player.x=Math.max(player.r,Math.min(canvas.width-player.r,player.x));
- player.y=Math.max(player.r,Math.min(canvas.height-player.r,player.y));
+ let dx = 0;
+ let dy = 0;
+
+ if(keys.left){
+  dx--;
+ }
+
+ if(keys.right){
+  dx++;
+ }
+
+ if(keys.up){
+  dy--;
+ }
+
+ if(keys.down){
+  dy++;
+ }
+
+ if(dx || dy){
+
+  const length =
+   Math.hypot(
+    dx,
+    dy
+   ) || 1;
+
+  player.x +=
+   dx /
+   length *
+   player.speed *
+   dt;
+
+  player.y +=
+   dy /
+   length *
+   player.speed *
+   dt;
+ }
+
+ player.x =
+  Math.max(
+   player.r,
+   Math.min(
+    canvas.width -
+    player.r,
+    player.x
+   )
+  );
+
+ player.y =
+  Math.max(
+   player.r,
+   Math.min(
+    canvas.height -
+    player.r,
+    player.y
+   )
+  );
 
  if(
   Math.hypot(
-   player.x-coin.x,
-   player.y-coin.y
-  )<
-  player.r+coin.r
+   player.x - coin.x,
+   player.y - coin.y
+  ) <
+  player.r + coin.r
  ){
 
   score++;
 
-  scoreEl.textContent=String(score);
+  scoreEl.textContent =
+   String(score);
 
-  messageEl.textContent=
-   'Nice! Score '+score;
+  messageEl.textContent =
+   'Nice! Score ' + score;
 
   randomCoin();
  }
@@ -1711,7 +1906,8 @@ function update(dt){
 
 function draw(){
 
- ctx.fillStyle='#07131d';
+ ctx.fillStyle =
+  '#07131d';
 
  ctx.fillRect(
   0,
@@ -1720,44 +1916,97 @@ function draw(){
   canvas.height
  );
 
- ctx.strokeStyle='#12384d';
+ ctx.strokeStyle =
+  '#12384d';
 
- for(let x=0;x<canvas.width;x+=50){
+ for(
+  let x = 0;
+  x < canvas.width;
+  x += 50
+ ){
+
   ctx.beginPath();
-  ctx.moveTo(x,0);
-  ctx.lineTo(x,canvas.height);
+
+  ctx.moveTo(
+   x,
+   0
+  );
+
+  ctx.lineTo(
+   x,
+   canvas.height
+  );
+
   ctx.stroke();
  }
 
- for(let y=0;y<canvas.height;y+=50){
+ for(
+  let y = 0;
+  y < canvas.height;
+  y += 50
+ ){
+
   ctx.beginPath();
-  ctx.moveTo(0,y);
-  ctx.lineTo(canvas.width,y);
+
+  ctx.moveTo(
+   0,
+   y
+  );
+
+  ctx.lineTo(
+   canvas.width,
+   y
+  );
+
   ctx.stroke();
  }
 
  ctx.beginPath();
- ctx.fillStyle='#ffd43b';
- ctx.arc(coin.x,coin.y,coin.r,0,Math.PI*2);
+
+ ctx.fillStyle =
+  '#ffd43b';
+
+ ctx.arc(
+  coin.x,
+  coin.y,
+  coin.r,
+  0,
+  Math.PI * 2
+ );
+
  ctx.fill();
 
  ctx.beginPath();
- ctx.fillStyle='#32d7ff';
- ctx.arc(player.x,player.y,player.r,0,Math.PI*2);
+
+ ctx.fillStyle =
+  '#32d7ff';
+
+ ctx.arc(
+  player.x,
+  player.y,
+  player.r,
+  0,
+  Math.PI * 2
+ );
+
  ctx.fill();
 }
 
 function gameLoop(now){
 
- const dt=
+ const dt =
   Math.min(
-   (now-last)/1000,
+   (now - last) /
+   1000,
    .05
   );
 
- last=now;
+ last = now;
 
- update(dt);
+ update(
+  dt
+ );
+
  draw();
 
  requestAnimationFrame(
@@ -1765,61 +2014,190 @@ function gameLoop(now){
  );
 }
 
-function bindHold(id,key){
+function bindHold(
+ id,
+ key
+){
 
- const button=
-  document.getElementById(id);
+ const button =
+  document.getElementById(
+   id
+  );
 
- const down=e=>{
-  e.preventDefault();
-  keys[key]=true;
- };
+ const down =
+  event => {
 
- const up=e=>{
-  e.preventDefault();
-  keys[key]=false;
- };
+   event.preventDefault();
 
- button.addEventListener('pointerdown',down);
- button.addEventListener('pointerup',up);
- button.addEventListener('pointercancel',up);
- button.addEventListener('pointerleave',up);
+   keys[key] =
+    true;
+  };
+
+ const up =
+  event => {
+
+   event.preventDefault();
+
+   keys[key] =
+    false;
+  };
+
+ button.addEventListener(
+  'pointerdown',
+  down
+ );
+
+ button.addEventListener(
+  'pointerup',
+  up
+ );
+
+ button.addEventListener(
+  'pointercancel',
+  up
+ );
+
+ button.addEventListener(
+  'pointerleave',
+  up
+ );
 }
 
-bindHold('left','left');
-bindHold('right','right');
-bindHold('up','up');
-bindHold('down','down');
+bindHold(
+ 'left',
+ 'left'
+);
 
-document.getElementById('pause').onclick=()=>{
- paused=!paused;
- messageEl.textContent=paused?'Paused':'Go!';
-};
+bindHold(
+ 'right',
+ 'right'
+);
 
-document.getElementById('action').onclick=()=>{
- messageEl.textContent='Action!';
-};
+bindHold(
+ 'up',
+ 'up'
+);
 
-document.getElementById('restart').onclick=
+bindHold(
+ 'down',
+ 'down'
+);
+
+document
+ .getElementById(
+  'pause'
+ )
+ .onclick =
+ () => {
+
+  paused =
+   !paused;
+
+  messageEl.textContent =
+   paused ?
+   'Paused' :
+   'Go!';
+ };
+
+document
+ .getElementById(
+  'action'
+ )
+ .onclick =
+ () => {
+
+  messageEl.textContent =
+   'Action!';
+ };
+
+document
+ .getElementById(
+  'restart'
+ )
+ .onclick =
  resetGame;
 
 window.addEventListener(
  'keydown',
- e=>{
-  if(e.key==='ArrowLeft'||e.key==='a')keys.left=true;
-  if(e.key==='ArrowRight'||e.key==='d')keys.right=true;
-  if(e.key==='ArrowUp'||e.key==='w')keys.up=true;
-  if(e.key==='ArrowDown'||e.key==='s')keys.down=true;
+ event => {
+
+  if(
+   event.key ===
+   'ArrowLeft' ||
+   event.key ===
+   'a'
+  ){
+   keys.left = true;
+  }
+
+  if(
+   event.key ===
+   'ArrowRight' ||
+   event.key ===
+   'd'
+  ){
+   keys.right = true;
+  }
+
+  if(
+   event.key ===
+   'ArrowUp' ||
+   event.key ===
+   'w'
+  ){
+   keys.up = true;
+  }
+
+  if(
+   event.key ===
+   'ArrowDown' ||
+   event.key ===
+   's'
+  ){
+   keys.down = true;
+  }
  }
 );
 
 window.addEventListener(
  'keyup',
- e=>{
-  if(e.key==='ArrowLeft'||e.key==='a')keys.left=false;
-  if(e.key==='ArrowRight'||e.key==='d')keys.right=false;
-  if(e.key==='ArrowUp'||e.key==='w')keys.up=false;
-  if(e.key==='ArrowDown'||e.key==='s')keys.down=false;
+ event => {
+
+  if(
+   event.key ===
+   'ArrowLeft' ||
+   event.key ===
+   'a'
+  ){
+   keys.left = false;
+  }
+
+  if(
+   event.key ===
+   'ArrowRight' ||
+   event.key ===
+   'd'
+  ){
+   keys.right = false;
+  }
+
+  if(
+   event.key ===
+   'ArrowUp' ||
+   event.key ===
+   'w'
+  ){
+   keys.up = false;
+  }
+
+  if(
+   event.key ===
+   'ArrowDown' ||
+   event.key ===
+   's'
+  ){
+   keys.down = false;
+  }
  }
 );
 
@@ -1858,16 +2236,77 @@ requestAnimationFrame(
 
 <style>
 *{box-sizing:border-box}
-html,body{margin:0;background:#030811;color:#fff;font-family:Arial,sans-serif}
-body{padding:10px}
-#shell{width:min(100%,900px);margin:auto}
-#top{display:flex;justify-content:space-between;margin-bottom:8px}
-#game{position:relative;width:100%;aspect-ratio:16/10;background:#07111c;border:1px solid #24546b;border-radius:14px;overflow:hidden}
-#game canvas{display:block;width:100%!important;height:100%!important;touch-action:none}
-#status{position:absolute;left:10px;right:10px;top:10px;text-align:center;z-index:5;font-weight:700}
-#controls{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
-button{min-height:52px;border:1px solid #39d9ff;border-radius:12px;background:#0b1c29;color:#fff;font-size:18px;font-weight:800}
-#restart{width:100%;margin-top:8px}
+
+html,body{
+ margin:0;
+ background:#030811;
+ color:#fff;
+ font-family:Arial,sans-serif
+}
+
+body{
+ padding:10px
+}
+
+#shell{
+ width:min(100%,900px);
+ margin:auto
+}
+
+#top{
+ display:flex;
+ justify-content:space-between;
+ margin-bottom:8px
+}
+
+#game{
+ position:relative;
+ width:100%;
+ aspect-ratio:16/10;
+ background:#07111c;
+ border:1px solid #24546b;
+ border-radius:14px;
+ overflow:hidden
+}
+
+#game canvas{
+ display:block;
+ width:100%!important;
+ height:100%!important;
+ touch-action:none
+}
+
+#status{
+ position:absolute;
+ left:10px;
+ right:10px;
+ top:10px;
+ text-align:center;
+ z-index:5;
+ font-weight:700
+}
+
+#controls{
+ display:grid;
+ grid-template-columns:repeat(3,1fr);
+ gap:8px;
+ margin-top:10px
+}
+
+button{
+ min-height:52px;
+ border:1px solid #39d9ff;
+ border-radius:12px;
+ background:#0b1c29;
+ color:#fff;
+ font-size:18px;
+ font-weight:800
+}
+
+#restart{
+ width:100%;
+ margin-top:8px
+}
 </style>
 </head>
 
@@ -1888,6 +2327,7 @@ button{min-height:52px;border:1px solid #39d9ff;border-radius:12px;background:#0
 <button id="left">◀</button>
 <button id="forward">▲</button>
 <button id="right">▶</button>
+
 <button id="back">▼</button>
 <button id="action">ACTION</button>
 <button id="pause">PAUSE</button>
@@ -1899,67 +2339,74 @@ button{min-height:52px;border:1px solid #39d9ff;border-radius:12px;background:#0
 
 <script type="module">
 
-const statusEl=
- document.getElementById('status');
+const statusEl =
+ document.getElementById(
+  'status'
+ );
 
-const scoreEl=
- document.getElementById('score');
+const scoreEl =
+ document.getElementById(
+  'score'
+ );
 
-const gameEl=
- document.getElementById('game');
+const gameEl =
+ document.getElementById(
+  'game'
+ );
 
 let THREE;
 
-try{
+try {
 
- THREE=
+ THREE =
   await import(
    'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js'
   );
 
-}catch(error){
+} catch(error) {
 
- statusEl.textContent=
+ statusEl.textContent =
   '3D engine could not load. Check internet connection.';
 
  throw error;
 }
 
-const scene=
+const scene =
  new THREE.Scene();
 
-scene.background=
+scene.background =
  new THREE.Color(
   0x07111c
  );
 
-scene.fog=
+scene.fog =
  new THREE.Fog(
   0x07111c,
   18,
   55
  );
 
-const camera=
+const camera =
  new THREE.PerspectiveCamera(
   60,
-  gameEl.clientWidth/
-   Math.max(
-    gameEl.clientHeight,
-    1
-   ),
+  gameEl.clientWidth /
+  Math.max(
+   gameEl.clientHeight,
+   1
+  ),
   .1,
   100
  );
 
-const renderer=
+const renderer =
  new THREE.WebGLRenderer({
   antialias:true
  });
 
 renderer.setPixelRatio(
  Math.min(
-  window.devicePixelRatio||1,
+  window.devicePixelRatio ||
+  1,
   2
  )
 );
@@ -1976,7 +2423,7 @@ scene.add(
  )
 );
 
-const sun=
+const sun =
  new THREE.DirectionalLight(
   0xffffff,
   2
@@ -1992,7 +2439,7 @@ scene.add(
  sun
 );
 
-const floor=
+const floor =
  new THREE.Mesh(
   new THREE.PlaneGeometry(
    50,
@@ -2003,8 +2450,8 @@ const floor=
   })
  );
 
-floor.rotation.x=
- -Math.PI/2;
+floor.rotation.x =
+ -Math.PI / 2;
 
 scene.add(
  floor
@@ -2019,7 +2466,7 @@ scene.add(
  )
 );
 
-const player=
+const player =
  new THREE.Mesh(
   new THREE.CapsuleGeometry(
    .55,
@@ -2042,7 +2489,7 @@ scene.add(
  player
 );
 
-const target=
+const target =
  new THREE.Mesh(
   new THREE.SphereGeometry(
    .5,
@@ -2058,32 +2505,32 @@ scene.add(
  target
 );
 
-const keys={
+const keys = {
  left:false,
  right:false,
  forward:false,
  back:false
 };
 
-let score=0;
-let paused=false;
-let previous=
+let score = 0;
+let paused = false;
+let previous =
  performance.now();
 
 function moveTarget(){
 
  target.position.set(
-  (Math.random()-.5)*18,
+  (Math.random() - .5) * 18,
   .6,
-  (Math.random()-.5)*18
+  (Math.random() - .5) * 18
  );
 }
 
 function resetGame(){
 
- score=0;
+ score = 0;
 
- scoreEl.textContent=
+ scoreEl.textContent =
   '0';
 
  player.position.set(
@@ -2092,46 +2539,68 @@ function resetGame(){
   0
  );
 
- paused=false;
+ paused = false;
 
  moveTarget();
 
- statusEl.textContent=
+ statusEl.textContent =
   'Collect the yellow orb';
 }
 
 function update(dt){
 
- if(paused)return;
-
- let x=0;
- let z=0;
-
- if(keys.left)x--;
- if(keys.right)x++;
- if(keys.forward)z--;
- if(keys.back)z++;
-
- if(x||z){
-
-  const len=
-   Math.hypot(x,z)||1;
-
-  player.position.x+=
-   x/len*6*dt;
-
-  player.position.z+=
-   z/len*6*dt;
+ if(paused){
+  return;
  }
 
- player.position.x=
+ let x = 0;
+ let z = 0;
+
+ if(keys.left){
+  x--;
+ }
+
+ if(keys.right){
+  x++;
+ }
+
+ if(keys.forward){
+  z--;
+ }
+
+ if(keys.back){
+  z++;
+ }
+
+ if(x || z){
+
+  const length =
+   Math.hypot(
+    x,
+    z
+   ) || 1;
+
+  player.position.x +=
+   x /
+   length *
+   6 *
+   dt;
+
+  player.position.z +=
+   z /
+   length *
+   6 *
+   dt;
+ }
+
+ player.position.x =
   THREE.MathUtils.clamp(
    player.position.x,
    -20,
    20
   );
 
- player.position.z=
+ player.position.z =
   THREE.MathUtils.clamp(
    player.position.z,
    -20,
@@ -2140,27 +2609,32 @@ function update(dt){
 
  if(
   Math.hypot(
-   player.position.x-target.position.x,
-   player.position.z-target.position.z
-  )<1.2
+   player.position.x -
+   target.position.x,
+   player.position.z -
+   target.position.z
+  ) < 1.2
  ){
 
   score++;
 
-  scoreEl.textContent=
-   String(score);
+  scoreEl.textContent =
+   String(
+    score
+   );
 
-  statusEl.textContent=
-   'Nice! Score '+score;
+  statusEl.textContent =
+   'Nice! Score ' +
+   score;
 
   moveTarget();
  }
 
- const desired=
+ const desired =
   new THREE.Vector3(
    player.position.x,
    7,
-   player.position.z+10
+   player.position.z + 10
   );
 
  camera.position.lerp(
@@ -2177,18 +2651,22 @@ function update(dt){
 
 function animate(now){
 
- const dt=
+ const dt =
   Math.min(
-   (now-previous)/1000,
+   (now - previous) /
+   1000,
    .05
   );
 
- previous=now;
+ previous =
+  now;
 
- update(dt);
+ update(
+  dt
+ );
 
- target.rotation.y+=
-  dt*2;
+ target.rotation.y +=
+  dt * 2;
 
  renderer.render(
   scene,
@@ -2202,17 +2680,18 @@ function animate(now){
 
 function resize(){
 
- const width=
+ const width =
   gameEl.clientWidth;
 
- const height=
+ const height =
   Math.max(
    gameEl.clientHeight,
    1
   );
 
- camera.aspect=
-  width/height;
+ camera.aspect =
+  width /
+  height;
 
  camera.updateProjectionMatrix();
 
@@ -2222,42 +2701,107 @@ function resize(){
  );
 }
 
-function bindHold(id,key){
+function bindHold(
+ id,
+ key
+){
 
- const button=
-  document.getElementById(id);
+ const button =
+  document.getElementById(
+   id
+  );
 
- const down=e=>{
-  e.preventDefault();
-  keys[key]=true;
- };
+ const down =
+  event => {
 
- const up=e=>{
-  e.preventDefault();
-  keys[key]=false;
- };
+   event.preventDefault();
 
- button.addEventListener('pointerdown',down);
- button.addEventListener('pointerup',up);
- button.addEventListener('pointercancel',up);
- button.addEventListener('pointerleave',up);
+   keys[key] =
+    true;
+  };
+
+ const up =
+  event => {
+
+   event.preventDefault();
+
+   keys[key] =
+    false;
+  };
+
+ button.addEventListener(
+  'pointerdown',
+  down
+ );
+
+ button.addEventListener(
+  'pointerup',
+  up
+ );
+
+ button.addEventListener(
+  'pointercancel',
+  up
+ );
+
+ button.addEventListener(
+  'pointerleave',
+  up
+ );
 }
 
-bindHold('left','left');
-bindHold('right','right');
-bindHold('forward','forward');
-bindHold('back','back');
+bindHold(
+ 'left',
+ 'left'
+);
 
-document.getElementById('pause').onclick=()=>{
- paused=!paused;
- statusEl.textContent=paused?'Paused':'Go!';
-};
+bindHold(
+ 'right',
+ 'right'
+);
 
-document.getElementById('action').onclick=()=>{
- statusEl.textContent='Action!';
-};
+bindHold(
+ 'forward',
+ 'forward'
+);
 
-document.getElementById('restart').onclick=
+bindHold(
+ 'back',
+ 'back'
+);
+
+document
+ .getElementById(
+  'pause'
+ )
+ .onclick =
+ () => {
+
+  paused =
+   !paused;
+
+  statusEl.textContent =
+   paused ?
+   'Paused' :
+   'Go!';
+ };
+
+document
+ .getElementById(
+  'action'
+ )
+ .onclick =
+ () => {
+
+  statusEl.textContent =
+   'Action!';
+ };
+
+document
+ .getElementById(
+  'restart'
+ )
+ .onclick =
  resetGame;
 
 window.addEventListener(
@@ -2266,6 +2810,7 @@ window.addEventListener(
 );
 
 resize();
+
 resetGame();
 
 requestAnimationFrame(
@@ -2276,333 +2821,6 @@ requestAnimationFrame(
 
 </body>
 </html>
-""".trimIndent()
-    }
-
-    // ============================================================
-    // BUILDER PROMPTS
-    // ============================================================
-
-    fun builderSystemPrompt(
-        type: JarvisProjectType
-    ): String {
-
-        val shared =
-            """
-You are JARVIS BUILDER.
-
-Create complete runnable projects.
-
-CRITICAL RULES:
-
-1. Return ONE COMPLETE index.html.
-2. Never return partial code.
-3. Never use TODO.
-4. Never use ellipses instead of code.
-5. Include closing BODY and HTML tags.
-6. KEEP CODE COMPACT.
-7. Do not explain the code.
-8. Preserve working code when editing.
-9. Never change project type.
-10. Make controls mobile friendly.
-11. Avoid unnecessary libraries.
-12. Prefer short CSS and JavaScript.
-
-Return exactly:
-
-<JARVIS_FILE>
-COMPLETE HTML
-</JARVIS_FILE>
-""".trimIndent()
-
-        val specialist =
-            when (type) {
-
-                JarvisProjectType.WEBSITE ->
-
-                    """
-PROJECT TYPE: WEBSITE
-
-Create a polished responsive mobile-friendly website.
-
-IMPORTANT:
-Keep the HTML compact.
-Use CSS instead of external assets.
-Avoid large SVG data.
-Avoid external images unless essential.
-Use lightweight JavaScript only when needed.
-Include the mobile viewport.
-""".trimIndent()
-
-                JarvisProjectType.GAME_2D ->
-
-                    """
-PROJECT TYPE: 2D GAME
-
-Preserve:
-Canvas
-requestAnimationFrame
-touch controls
-keyboard controls
-restart handling
-
-Modify the existing foundation.
-Do not rebuild unnecessarily.
-""".trimIndent()
-
-                JarvisProjectType.GAME_3D ->
-
-                    """
-PROJECT TYPE: 3D GAME
-
-Preserve:
-Three.js
-scene
-camera
-renderer
-lighting
-requestAnimationFrame
-resize handling
-touch controls
-
-Modify the existing foundation.
-Keep it compact.
-""".trimIndent()
-
-                JarvisProjectType.UNKNOWN ->
-
-                    """
-PROJECT TYPE UNKNOWN.
-Ask for WEBSITE, 2D GAME or 3D GAME.
-""".trimIndent()
-            }
-
-        return """
-$shared
-
-$specialist
-""".trimIndent()
-    }
-
-    // ============================================================
-    // EDIT PROMPT
-    // ============================================================
-
-    fun createEditPrompt(
-        project: JarvisProject,
-        userRequest: String
-    ): String {
-
-        val existing =
-            readMainFile(
-                project
-            )
-                ?: when (
-                    project.type
-                ) {
-
-                    JarvisProjectType.GAME_2D ->
-
-                        create2DGameFoundation(
-                            displayName(
-                                project.name
-                            )
-                        )
-
-                    JarvisProjectType.GAME_3D ->
-
-                        create3DGameFoundation(
-                            displayName(
-                                project.name
-                            )
-                        )
-
-                    else -> ""
-                }
-
-        return """
-EDIT CURRENT PROJECT.
-
-PROJECT:
-${project.name}
-
-ID:
-${project.id}
-
-TYPE:
-${project.type.name}
-
-REQUEST:
-$userRequest
-
-Modify the existing project.
-
-RULES:
-Keep the same type.
-Preserve working features.
-Return COMPLETE index.html.
-Keep output compact.
-Never omit </body> or </html>.
-
-EXISTING:
-
-<JARVIS_EXISTING_FILE>
-$existing
-</JARVIS_EXISTING_FILE>
-
-Return inside JARVIS_FILE.
-""".trimIndent()
-    }
-
-    // ============================================================
-    // INITIAL GAME PROMPT
-    // ============================================================
-
-    fun createInitialGamePrompt(
-        project: JarvisProject,
-        userRequest: String
-    ): String {
-
-        val foundation =
-            when (
-                project.type
-            ) {
-
-                JarvisProjectType.GAME_2D ->
-
-                    create2DGameFoundation(
-                        displayName(
-                            project.name
-                        )
-                    )
-
-                JarvisProjectType.GAME_3D ->
-
-                    create3DGameFoundation(
-                        displayName(
-                            project.name
-                        )
-                    )
-
-                else -> ""
-            }
-
-        return """
-BUILD GAME:
-
-$userRequest
-
-Modify this working foundation.
-
-Do not rebuild from scratch.
-Keep engine, controls and animation loop.
-Return complete compact HTML.
-
-<JARVIS_EXISTING_FILE>
-$foundation
-</JARVIS_EXISTING_FILE>
-
-Return inside JARVIS_FILE.
-""".trimIndent()
-    }
-
-    // ============================================================
-    // FALLBACK
-    // ============================================================
-
-    fun workingFallback(
-        project: JarvisProject
-    ): String? {
-
-        val existing =
-            readMainFile(
-                project
-            )
-
-        if (
-            existing != null
-        ) {
-
-            val fatal =
-                validateProject(
-                    project,
-                    existing
-                ).any {
-
-                    isFatalValidationProblem(
-                        it
-                    )
-                }
-
-            if (
-                !fatal
-            ) {
-
-                return existing
-            }
-        }
-
-        return when (
-            project.type
-        ) {
-
-            JarvisProjectType.GAME_2D ->
-
-                create2DGameFoundation(
-                    displayName(
-                        project.name
-                    )
-                )
-
-            JarvisProjectType.GAME_3D ->
-
-                create3DGameFoundation(
-                    displayName(
-                        project.name
-                    )
-                )
-
-            else -> null
-        }
-    }
-
-    fun createRepairPrompt(
-        project: JarvisProject,
-        brokenHtml: String,
-        problems: List<String>
-    ): String {
-
-        val fallback =
-            workingFallback(
-                project
-            ).orEmpty()
-
-        return """
-REPAIR PROJECT.
-
-TYPE:
-${project.type.name}
-
-ERRORS:
-${problems.joinToString("; ")}
-
-BROKEN:
-<JARVIS_BROKEN_FILE>
-$brokenHtml
-</JARVIS_BROKEN_FILE>
-
-WORKING VERSION:
-<JARVIS_EXISTING_FILE>
-$fallback
-</JARVIS_EXISTING_FILE>
-
-Return ONE COMPLETE compact index.html.
-Do not explain.
-Include </body> and </html>.
-
-<JARVIS_FILE>
-COMPLETE RESULT
-</JARVIS_FILE>
 """.trimIndent()
     }
 
@@ -2636,21 +2854,34 @@ created=${System.currentTimeMillis()}
         type: JarvisProjectType
     ): String {
 
+        /*
+         * Example:
+         *
+         * "Create a website called Nova Test with a dark design"
+         *
+         * becomes:
+         *
+         * nova_test
+         *
+         * instead of:
+         *
+         * nova_test_with_a_dark_design
+         */
         val called =
             Regex(
-                """\b(?:called|named)\s+([a-z0-9][a-z0-9 '&-]{0,39})(?=[.!?,]|$)""",
+                """\b(?:called|named)\s+([a-z0-9][a-z0-9 '&-]{0,39}?)(?=\s+(?:with|that|which|using|featuring|for)\b|[.!?,]|$)""",
                 RegexOption.IGNORE_CASE
             )
                 .find(
                     request
                 )
                 ?.groupValues
-                ?.getOrNull(1)
+                ?.getOrNull(
+                    1
+                )
                 ?.trim()
 
-        if (
-            !called.isNullOrBlank()
-        ) {
+        if (!called.isNullOrBlank()) {
 
             return sanitizeProjectName(
                 called
@@ -2674,6 +2905,9 @@ created=${System.currentTimeMillis()}
                 "build",
                 "make",
                 "create",
+                "develop",
+                "generate",
+                "start",
                 "new",
                 "another",
                 "a website",
@@ -2681,6 +2915,9 @@ created=${System.currentTimeMillis()}
                 "web site",
                 "webpage",
                 "web page",
+                "landing page",
+                "portfolio site",
+                "business site",
                 "a 2d game",
                 "2d game",
                 "a 3d game",
@@ -2698,8 +2935,19 @@ created=${System.currentTimeMillis()}
                 )
         }
 
+        /*
+         * Remove the descriptive part of the request so a sentence
+         * does not become a huge project name.
+         */
         cleaned =
             cleaned
+                .replace(
+                    Regex(
+                        """\b(?:with|that|which|using|featuring|for)\b.*$""",
+                        RegexOption.IGNORE_CASE
+                    ),
+                    " "
+                )
                 .replace(
                     Regex(
                         "[^a-z0-9 ]"
@@ -2720,14 +2968,13 @@ created=${System.currentTimeMillis()}
                     " "
                 )
                 .filter {
-
                     it.isNotBlank()
                 }
-                .take(5)
+                .take(
+                    4
+                )
 
-        if (
-            words.isNotEmpty()
-        ) {
+        if (words.isNotEmpty()) {
 
             return sanitizeProjectName(
                 words.joinToString(
@@ -2736,9 +2983,7 @@ created=${System.currentTimeMillis()}
             )
         }
 
-        return when (
-            type
-        ) {
+        return when (type) {
 
             JarvisProjectType.WEBSITE ->
                 "website"
@@ -2783,7 +3028,6 @@ created=${System.currentTimeMillis()}
                 )
 
         return cleaned.ifBlank {
-
             "jarvis_project"
         }
     }
@@ -2801,21 +3045,16 @@ created=${System.currentTimeMillis()}
                 " "
             )
             .filter {
-
                 it.isNotBlank()
             }
             .joinToString(
                 " "
             ) {
-
-                it.replaceFirstChar {
-                    character ->
-
+                it.replaceFirstChar { character ->
                     character.uppercase()
                 }
             }
             .ifBlank {
-
                 "Jarvis Game"
             }
     }
