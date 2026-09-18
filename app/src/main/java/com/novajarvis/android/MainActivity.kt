@@ -107,10 +107,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 if (!spoken.isNullOrBlank()) {
 
                     inputText.setText(spoken)
-
-                    inputText.setSelection(
-                        spoken.length
-                    )
+                    inputText.setSelection(spoken.length)
 
                     sendMessage()
                 }
@@ -146,9 +143,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         savedInstanceState: Bundle?
     ) {
 
-        super.onCreate(
-            savedInstanceState
-        )
+        super.onCreate(savedInstanceState)
 
         workspace =
             ProjectWorkspace(this)
@@ -163,10 +158,6 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
         restoreMemory()
 
-        /*
-         * Check for a build that was running when Android
-         * terminated the previous app process.
-         */
         recoverInterruptedBuild()
 
         checkModel()
@@ -216,21 +207,13 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
     private fun recoverInterruptedBuild() {
 
-        if (
-            !workspace.wasBuildInterrupted()
-        ) {
-
+        if (!workspace.wasBuildInterrupted()) {
             return
         }
 
         val interrupted =
             workspace.getInterruptedProject()
 
-        /*
-         * Clear the stale running flag immediately.
-         *
-         * The project files themselves are preserved.
-         */
         workspace.clearInterruptedBuild()
 
         if (interrupted == null) {
@@ -248,9 +231,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 interrupted
             )
 
-        if (
-            !html.isNullOrBlank()
-        ) {
+        if (!html.isNullOrBlank()) {
 
             val problems =
                 workspace.validateProject(
@@ -260,9 +241,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
             val fatal =
                 problems.any {
-                    workspace.isFatalValidationProblem(
-                        it
-                    )
+                    workspace.isFatalValidationProblem(it)
                 }
 
             if (!fatal) {
@@ -272,9 +251,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 )
 
                 addJarvisMessage(
-                    "I recovered ${interrupted.name} after the " +
-                        "previous interruption. Its saved project " +
-                        "passed validation and is ready to preview."
+                    "I recovered ${interrupted.name}. " +
+                        "Its saved project passed validation and is ready to preview."
                 )
 
                 return
@@ -283,8 +261,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
         addJarvisMessage(
             "The previous build of ${interrupted.name} was interrupted " +
-                "before a complete project was saved. I did not replace " +
-                "your verified Preview with the incomplete build."
+                "before a complete project was saved. " +
+                "The last verified Preview was kept safe."
         )
     }
 
@@ -335,9 +313,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 orientation =
                     LinearLayout.VERTICAL
 
-                setBackgroundColor(
-                    background
-                )
+                setBackgroundColor(background)
 
                 setPadding(
                     dp(16),
@@ -356,9 +332,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 textSize =
                     28f
 
-                setTextColor(
-                    cyan
-                )
+                setTextColor(cyan)
 
                 gravity =
                     Gravity.CENTER
@@ -385,9 +359,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 textSize =
                     12f
 
-                setTextColor(
-                    muted
-                )
+                setTextColor(muted)
 
                 gravity =
                     Gravity.CENTER
@@ -409,13 +381,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 textSize =
                     12f
 
-                setTextColor(
-                    cyan
-                )
+                setTextColor(cyan)
 
-                setBackgroundColor(
-                    panel
-                )
+                setBackgroundColor(panel)
 
                 setPadding(
                     dp(12),
@@ -448,9 +416,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 isFillViewport =
                     true
 
-                setBackgroundColor(
-                    panel
-                )
+                setBackgroundColor(panel)
             }
 
         chatText =
@@ -459,9 +425,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 textSize =
                     15f
 
-                setTextColor(
-                    white
-                )
+                setTextColor(white)
 
                 setPadding(
                     dp(14),
@@ -470,9 +434,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     dp(14)
                 )
 
-                setTextIsSelectable(
-                    true
-                )
+                setTextIsSelectable(true)
             }
 
         scroll.addView(
@@ -489,17 +451,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 hint =
                     "Ask Jarvis..."
 
-                setHintTextColor(
-                    muted
-                )
-
-                setTextColor(
-                    white
-                )
-
-                setBackgroundColor(
-                    panel
-                )
+                setHintTextColor(muted)
+                setTextColor(white)
+                setBackgroundColor(panel)
 
                 setPadding(
                     dp(12),
@@ -592,17 +546,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             previewButton
         )
 
-        root.addView(
-            title
-        )
-
-        root.addView(
-            subtitle
-        )
-
-        root.addView(
-            statusText
-        )
+        root.addView(title)
+        root.addView(subtitle)
+        root.addView(statusText)
 
         root.addView(
             progressBar,
@@ -644,9 +590,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             }
         )
 
-        root.addView(
-            normalRow
-        )
+        root.addView(normalRow)
 
         root.addView(
             builderRow,
@@ -660,17 +604,13 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             }
         )
 
-        setContentView(
-            root
-        )
+        setContentView(root)
 
         sendButton.setOnClickListener {
-
             sendMessage()
         }
 
         talkButton.setOnClickListener {
-
             requestVoiceInput()
         }
 
@@ -714,7 +654,6 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         }
 
         previewButton.setOnClickListener {
-
             previewVerifiedProject()
         }
 
@@ -722,19 +661,20 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
             when {
 
-                modelLoaded ->
+                modelLoaded -> {
 
                     addJarvisMessage(
                         "The local Jarvis AI model is loaded and ready."
                     )
+                }
 
-                modelReady ->
-
+                modelReady -> {
                     loadLocalModel()
+                }
 
-                else ->
-
+                else -> {
                     downloadModel()
+                }
             }
         }
     }
@@ -772,13 +712,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             text =
                 label
 
-            setTextColor(
-                textColor
-            )
+            setTextColor(textColor)
 
-            setBackgroundColor(
-                backgroundColor
-            )
+            setBackgroundColor(backgroundColor)
 
             setTypeface(
                 Typeface.DEFAULT,
@@ -825,17 +761,59 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             return
         }
 
-        inputText.setText(
-            ""
-        )
+        inputText.setText("")
 
-        addUserMessage(
-            message
-        )
+        addUserMessage(message)
 
-        rememberLastUserMessage(
-            message
-        )
+        rememberLastUserMessage(message)
+
+        /*
+         * Work out whether this is a builder request BEFORE
+         * requiring the AI model.
+         *
+         * This allows instant 2D/3D foundations to be created
+         * even if the local model is not currently loaded.
+         */
+        val isNewBuild =
+            workspace.isNewBuildRequest(
+                message
+            )
+
+        val isEdit =
+            workspace.isProjectEditRequest(
+                message
+            )
+
+        val builderRequest =
+            builderMode ||
+                isNewBuild ||
+                isEdit
+
+        if (builderRequest) {
+
+            val explicitType =
+                workspace.detectProjectType(
+                    message
+                )
+
+            /*
+             * New 2D/3D projects can be created without inference.
+             */
+            val instantGame =
+                isNewBuild &&
+                    (
+                        explicitType ==
+                            JarvisProjectType.GAME_2D ||
+                        explicitType ==
+                            JarvisProjectType.GAME_3D
+                    )
+
+            if (instantGame) {
+
+                handleBuilderRequest(message)
+                return
+            }
+        }
 
         if (!modelReady) {
 
@@ -859,31 +837,13 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             return
         }
 
-        val isNewBuild =
-            workspace.isNewBuildRequest(
-                message
-            )
+        if (builderRequest) {
 
-        val isEdit =
-            workspace.isProjectEditRequest(
-                message
-            )
-
-        if (
-            builderMode ||
-            isNewBuild ||
-            isEdit
-        ) {
-
-            handleBuilderRequest(
-                message
-            )
+            handleBuilderRequest(message)
 
         } else {
 
-            generateAIResponse(
-                message
-            )
+            generateAIResponse(message)
         }
     }
 
@@ -958,8 +918,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                         "I couldn't create the project workspace: " +
                             (
                                 e.message ?:
-                                "Unknown storage error"
-                            )
+                                    "Unknown storage error"
+                                )
                     )
 
                     setStatus(
@@ -974,11 +934,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
             updateBuilderButton()
 
-            if (
-                isGameProject(
-                    project
-                )
-            ) {
+            if (isGameProject(project)) {
 
                 setStatus(
                     "BUILDER: GAME READY"
@@ -988,8 +944,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     "${project.name} is ready as a " +
                         "${projectLabel(project.type)}. " +
                         "I created a verified playable foundation instantly. " +
-                        "Press PREVIEW to play it, then tell me what " +
-                        "you want changed."
+                        "Press PREVIEW to play it, then tell me what you want changed."
                 )
 
                 return
@@ -1052,7 +1007,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
         if (
             explicitType ==
-            JarvisProjectType.UNKNOWN
+                JarvisProjectType.UNKNOWN
         ) {
 
             addJarvisMessage(
@@ -1094,8 +1049,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     "I couldn't create the project workspace: " +
                         (
                             e.message ?:
-                            "Unknown storage error"
-                        )
+                                "Unknown storage error"
+                            )
                 )
 
                 setStatus(
@@ -1110,11 +1065,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
         updateBuilderButton()
 
-        if (
-            isGameProject(
-                project
-            )
-        ) {
+        if (isGameProject(project)) {
 
             setStatus(
                 "BUILDER: GAME READY"
@@ -1147,28 +1098,26 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         return (
             project.type ==
                 JarvisProjectType.GAME_2D ||
-            project.type ==
-                JarvisProjectType.GAME_3D
-        )
+                project.type ==
+                    JarvisProjectType.GAME_3D
+            )
     }
 
     /*
-     * Lower output limits reduce peak memory use.
+     * Websites get enough output room to actually finish the HTML.
      *
-     * The 0.5B model can still make useful compact pages,
-     * but asking it for a huge page on-device increases the
-     * chance Android kills the process.
+     * The context remains 2048 for phone stability.
+     * The prompt itself is deliberately short so most of the
+     * available budget goes toward the generated page.
      */
     private fun builderTokenLimit(
         project: JarvisProject
     ): Int {
 
-        return when (
-            project.type
-        ) {
+        return when (project.type) {
 
             JarvisProjectType.WEBSITE ->
-                896
+                1280
 
             JarvisProjectType.GAME_2D ->
                 320
@@ -1200,23 +1149,9 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             return
         }
 
-        val model =
-            llamaModel
-
-        if (model == null) {
-
-            modelLoaded =
-                false
-
-            setStatus(
-                "SYSTEM: MODEL NOT LOADED"
-            )
-
-            return
-        }
-
         /*
          * New games already have their verified foundation.
+         * They do not need the AI model for their initial build.
          */
         if (
             !editing &&
@@ -1236,37 +1171,46 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             return
         }
 
+        val model =
+            llamaModel
+
+        if (model == null) {
+
+            modelLoaded =
+                false
+
+            setStatus(
+                "SYSTEM: MODEL NOT LOADED"
+            )
+
+            addJarvisMessage(
+                "The local AI model needs to be loaded before I can build this."
+            )
+
+            if (modelReady) {
+                loadLocalModel()
+            }
+
+            return
+        }
+
         generationRunning =
             true
 
-        setBusy(
-            true
-        )
+        setBusy(true)
 
-        /*
-         * Persist this BEFORE inference.
-         *
-         * If Android terminates the app, the next launch knows
-         * exactly which project was interrupted.
-         */
-        workspace.beginBuild(
-            project
-        )
+        workspace.beginBuild(project)
 
         setStatus(
             if (editing) {
 
                 "BUILDER: UPDATING " +
-                    projectLabel(
-                        project.type
-                    )
+                    projectLabel(project.type)
 
             } else {
 
                 "BUILDER: CREATING " +
-                    projectLabel(
-                        project.type
-                    )
+                    projectLabel(project.type)
             }
         )
 
@@ -1293,6 +1237,14 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
             try {
 
+                /*
+                 * IMPORTANT:
+                 *
+                 * Keep this prompt very small.
+                 * Qwen 0.5B only has a 2048 context in this app.
+                 * Long instructions consume space that should be used
+                 * for the actual website.
+                 */
                 val prompt =
                     if (editing) {
 
@@ -1304,30 +1256,16 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     } else {
 
                         """
-PROJECT NAME:
-${project.name}
+Create ONE complete, very compact index.html.
 
-PROJECT TYPE:
-${project.type.name}
+Request: $userRequest
 
-USER REQUEST:
-$userRequest
-
-Create ONE complete compact index.html.
-
-IMPORTANT:
-Keep the page lightweight.
-Use short CSS.
-Use lightweight JavaScript only when necessary.
-Do not use large external assets.
-Include the mobile viewport.
-Finish the entire document including </body> and </html>.
-
-Return exactly:
-
-<JARVIS_FILE>
-COMPLETE HTML
-</JARVIS_FILE>
+Build the minimum working page first.
+Make it mobile-friendly.
+Use concise HTML/CSS and minimal JavaScript.
+No frameworks, base64 assets or large external assets.
+Always finish with </body> and </html>.
+Return only the complete HTML inside <JARVIS_FILE> tags.
 """.trimIndent()
                     }
 
@@ -1349,28 +1287,29 @@ COMPLETE HTML
                                     project.type
                                 ),
                             maxTokens =
-                                builderTokenLimit(
-                                    project
-                                )
+                                builderTokenLimit(project)
                         )
                     }
 
-                /*
-                 * Keep only the generated text reference we need.
-                 */
                 val raw =
                     result
                         .text
                         .trim()
 
-                var html =
+                /*
+                 * Only one AI generation is performed.
+                 *
+                 * We deliberately do NOT start an automatic second
+                 * repair generation. That previously increased memory
+                 * pressure and made Android more likely to terminate
+                 * the app.
+                 */
+                val html =
                     workspace.extractGeneratedHtml(
                         raw
                     )
 
-                if (
-                    html.isNullOrBlank()
-                ) {
+                if (html.isNullOrBlank()) {
 
                     addJarvisMessage(
                         "The builder stopped before returning a complete " +
@@ -1385,9 +1324,13 @@ COMPLETE HTML
                 }
 
                 /*
-                 * Reject suspiciously incomplete HTML before saving.
+                 * Fast completion checks before full validation.
                  */
                 if (
+                    !html.contains(
+                        "</body>",
+                        ignoreCase = true
+                    ) ||
                     !html.contains(
                         "</html>",
                         ignoreCase = true
@@ -1414,26 +1357,14 @@ COMPLETE HTML
 
                 val fatal =
                     problems.any {
-
-                        workspace
-                            .isFatalValidationProblem(
-                                it
-                            )
+                        workspace.isFatalValidationProblem(it)
                     }
 
                 if (fatal) {
 
-                    /*
-                     * IMPORTANT PHONE-SAFE CHANGE:
-                     *
-                     * Do not immediately run a second expensive LLM
-                     * inference on Android.
-                     */
                     addJarvisMessage(
                         "The generated project didn't pass validation: " +
-                            problems.joinToString(
-                                "; "
-                            ) +
+                            problems.joinToString("; ") +
                             ". I rejected it and kept the previous " +
                             "verified Preview safe."
                     )
@@ -1449,10 +1380,6 @@ COMPLETE HTML
                     "BUILDER: SAVING SAFELY"
                 )
 
-                /*
-                 * ProjectWorkspace writes to a temporary file,
-                 * validates it, then replaces index.html.
-                 */
                 workspace.saveMainFileAtomic(
                     project,
                     html,
@@ -1462,9 +1389,7 @@ COMPLETE HTML
                 successful =
                     true
 
-                if (
-                    problems.isEmpty()
-                ) {
+                if (problems.isEmpty()) {
 
                     addJarvisMessage(
                         "${project.name} is built, verified and saved. " +
@@ -1481,9 +1406,7 @@ COMPLETE HTML
                     addJarvisMessage(
                         "${project.name} is saved and previewable. " +
                             "Non-fatal warnings: " +
-                            problems.joinToString(
-                                "; "
-                            )
+                            problems.joinToString("; ")
                     )
 
                     setStatus(
@@ -1504,8 +1427,8 @@ COMPLETE HTML
                     "The build stopped: " +
                         (
                             e.message ?:
-                            "Unknown builder error"
-                        ) +
+                                "Unknown builder error"
+                            ) +
                         ". I kept the last verified Preview safe."
                 )
 
@@ -1515,14 +1438,6 @@ COMPLETE HTML
 
             } finally {
 
-                /*
-                 * Clear the build marker on normal coroutine completion.
-                 *
-                 * If Android kills the entire process during inference,
-                 * this code never runs and beginBuild() remains stored.
-                 * That is what lets recoverInterruptedBuild() detect it
-                 * next time.
-                 */
                 workspace.finishBuild(
                     project,
                     successful
@@ -1531,9 +1446,7 @@ COMPLETE HTML
                 generationRunning =
                     false
 
-                setBusy(
-                    false
-                )
+                setBusy(false)
             }
         }
     }
@@ -1545,36 +1458,68 @@ COMPLETE HTML
     private fun previewVerifiedProject() {
 
         /*
-         * Never use getCurrentProject() here.
-         *
-         * Current may be a website that is only half built.
+         * Do not start WebView while llama inference is running.
          */
-        val project =
+        if (generationRunning) {
+
+            addJarvisMessage(
+                "Wait until the current build finishes before opening Preview."
+            )
+
+            setStatus(
+                "PREVIEW: BUILD RUNNING"
+            )
+
+            return
+        }
+
+        val current =
+            workspace.getCurrentProject()
+
+        val preview =
             workspace.getPreviewProject()
+
+        /*
+         * This is important:
+         *
+         * If the user has just created a website but it has not yet
+         * built successfully, do NOT silently open an older game.
+         */
+        if (
+            current != null &&
+            (
+                preview == null ||
+                    preview.id != current.id
+                )
+        ) {
+
+            val label =
+                projectLabel(
+                    current.type
+                ).lowercase(
+                    Locale.getDefault()
+                )
+
+            addJarvisMessage(
+                "${current.name} doesn't have a verified $label build yet. " +
+                    "Build it successfully first, then PREVIEW will open that $label."
+            )
+
+            setStatus(
+                "PREVIEW: CURRENT PROJECT NOT VERIFIED"
+            )
+
+            return
+        }
+
+        val project =
+            preview
 
         if (project == null) {
 
-            val current =
-                workspace.getCurrentProject()
-
-            if (
-                current != null &&
-                current.type ==
-                    JarvisProjectType.WEBSITE
-            ) {
-
-                addJarvisMessage(
-                    "${current.name} doesn't have a verified website " +
-                        "build yet. Build it successfully first, then PREVIEW " +
-                        "will open that website."
-                )
-
-            } else {
-
-                addJarvisMessage(
-                    "There isn't a verified project to preview yet."
-                )
-            }
+            addJarvisMessage(
+                "There isn't a verified project to preview yet."
+            )
 
             setStatus(
                 "PREVIEW: NOTHING VERIFIED"
@@ -1588,12 +1533,10 @@ COMPLETE HTML
                 project
             )
 
-        if (
-            html.isNullOrBlank()
-        ) {
+        if (html.isNullOrBlank()) {
 
             addJarvisMessage(
-                "The verified project file could not be read."
+                "${project.name} doesn't have a readable verified build."
             )
 
             setStatus(
@@ -1603,25 +1546,21 @@ COMPLETE HTML
             return
         }
 
-        val problems =
-            workspace.validateProject(
-                project,
-                html
-            )
-
         val fatal =
-            problems.any {
-
-                workspace.isFatalValidationProblem(
-                    it
+            workspace
+                .validateProject(
+                    project,
+                    html
                 )
-            }
+                .any {
+                    workspace.isFatalValidationProblem(it)
+                }
 
         if (fatal) {
 
             addJarvisMessage(
-                "Preview was blocked because the saved project " +
-                    "no longer passes validation."
+                "${project.name}'s saved build failed validation, " +
+                    "so Preview was blocked."
             )
 
             setStatus(
@@ -1645,9 +1584,7 @@ COMPLETE HTML
         try {
 
             val dialog =
-                Dialog(
-                    this
-                )
+                Dialog(this)
 
             val root =
                 LinearLayout(this).apply {
@@ -1682,9 +1619,7 @@ COMPLETE HTML
 
                     text =
                         "${project.name} • " +
-                            projectLabel(
-                                project.type
-                            )
+                            projectLabel(project.type)
 
                     setTextColor(
                         Color.WHITE
@@ -1726,9 +1661,7 @@ COMPLETE HTML
             )
 
             val webView =
-                WebView(
-                    this
-                )
+                WebView(this)
 
             webView.settings.apply {
 
@@ -1741,18 +1674,12 @@ COMPLETE HTML
                 mediaPlaybackRequiresUserGesture =
                     false
 
-                /*
-                 * Keep direct local filesystem access disabled.
-                 */
                 allowFileAccess =
                     false
 
                 allowContentAccess =
                     false
 
-                /*
-                 * Avoid unnecessary WebView caching.
-                 */
                 cacheMode =
                     android.webkit.WebSettings.LOAD_NO_CACHE
             }
@@ -1763,9 +1690,7 @@ COMPLETE HTML
             webView.webChromeClient =
                 WebChromeClient()
 
-            root.addView(
-                topBar
-            )
+            root.addView(topBar)
 
             root.addView(
                 webView,
@@ -1776,9 +1701,7 @@ COMPLETE HTML
                 )
             )
 
-            dialog.setContentView(
-                root
-            )
+            dialog.setContentView(root)
 
             var destroyed =
                 false
@@ -1801,9 +1724,7 @@ COMPLETE HTML
                     )
 
                     webView.clearHistory()
-
                     webView.removeAllViews()
-
                     webView.destroy()
 
                 } catch (
@@ -1815,12 +1736,10 @@ COMPLETE HTML
             close.setOnClickListener {
 
                 destroyPreview()
-
                 dialog.dismiss()
             }
 
             dialog.setOnDismissListener {
-
                 destroyPreview()
             }
 
@@ -1831,9 +1750,6 @@ COMPLETE HTML
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
 
-            /*
-             * Load only after the dialog is ready.
-             */
             webView.loadDataWithBaseURL(
                 "https://jarvis.local/",
                 html,
@@ -1854,8 +1770,8 @@ COMPLETE HTML
                 "Preview couldn't open: " +
                     (
                         e.message ?:
-                        "Unknown WebView error"
-                    )
+                            "Unknown WebView error"
+                        )
             )
 
             setStatus(
@@ -1873,7 +1789,6 @@ COMPLETE HTML
     ) {
 
         if (generationRunning) {
-
             return
         }
 
@@ -1895,9 +1810,7 @@ COMPLETE HTML
         generationRunning =
             true
 
-        setBusy(
-            true
-        )
+        setBusy(true)
 
         setStatus(
             "JARVIS: THINKING LOCALLY"
@@ -1914,9 +1827,7 @@ COMPLETE HTML
                     ).orEmpty()
 
                 val memoryContext =
-                    if (
-                        remembered.isBlank()
-                    ) {
+                    if (remembered.isBlank()) {
 
                         ""
 
@@ -1962,9 +1873,7 @@ $message
                         .text
                         .trim()
 
-                if (
-                    answer.isBlank()
-                ) {
+                if (answer.isBlank()) {
 
                     addJarvisMessage(
                         "I couldn't generate a response."
@@ -1972,13 +1881,8 @@ $message
 
                 } else {
 
-                    addJarvisMessage(
-                        answer
-                    )
-
-                    speak(
-                        answer
-                    )
+                    addJarvisMessage(answer)
+                    speak(answer)
                 }
 
                 prefs
@@ -2001,8 +1905,8 @@ $message
                     "Local AI error: " +
                         (
                             e.message ?:
-                            "Unknown model error"
-                        )
+                                "Unknown model error"
+                            )
                 )
 
                 setStatus(
@@ -2014,9 +1918,7 @@ $message
                 generationRunning =
                     false
 
-                setBusy(
-                    false
-                )
+                setBusy(false)
             }
         }
     }
@@ -2047,16 +1949,11 @@ $message
         message: String
     ) {
 
-        if (
-            !::chatText.isInitialized
-        ) {
-
+        if (!::chatText.isInitialized) {
             return
         }
 
-        chatText.append(
-            message
-        )
+        chatText.append(message)
     }
 
     private fun rememberLastUserMessage(
@@ -2080,9 +1977,7 @@ $message
                 null
             )
 
-        if (
-            !previous.isNullOrBlank()
-        ) {
+        if (!previous.isNullOrBlank()) {
 
             addJarvisMessage(
                 "Local memory restored."
@@ -2143,9 +2038,7 @@ $message
                 "JARVIS: LISTENING"
             )
 
-            speechLauncher.launch(
-                intent
-            )
+            speechLauncher.launch(intent)
 
         } catch (
             _: Exception
@@ -2211,7 +2104,7 @@ $message
         modelReady =
             modelFile.exists() &&
                 modelFile.length() >
-                100_000_000L
+                    100_000_000L
 
         if (modelReady) {
 
@@ -2248,7 +2141,6 @@ $message
             modelLoaded ||
             modelLoading
         ) {
-
             return
         }
 
@@ -2272,8 +2164,7 @@ $message
         )
 
         addJarvisMessage(
-            "Loading my local AI brain. " +
-                "This can take a moment."
+            "Loading my local AI brain. This can take a moment."
         )
 
         lifecycleScope.launch {
@@ -2292,17 +2183,12 @@ $message
                                 LlamaConfig(
 
                                     /*
-                                     * Reduced further from 3072.
-                                     *
-                                     * This is a major memory-safety change.
+                                     * Keep the context conservative for
+                                     * Android memory stability.
                                      */
                                     contextSize =
                                         2048,
 
-                                    /*
-                                     * Conservative CPU use helps reduce
-                                     * heat and simultaneous memory pressure.
-                                     */
                                     threads =
                                         Runtime
                                             .getRuntime()
@@ -2354,8 +2240,8 @@ $message
                     "I couldn't load the local model: " +
                         (
                             e.message ?:
-                            "Unknown error"
-                        )
+                                "Unknown error"
+                            )
                 )
 
             } finally {
@@ -2411,9 +2297,7 @@ $message
                     ?.mkdirs()
 
                 var downloaded =
-                    if (
-                        partialModelFile.exists()
-                    ) {
+                    if (partialModelFile.exists()) {
 
                         partialModelFile.length()
 
@@ -2433,7 +2317,7 @@ $message
                 if (
                     downloaded > 0L &&
                     responseCode !=
-                    HttpURLConnection.HTTP_PARTIAL
+                        HttpURLConnection.HTTP_PARTIAL
                 ) {
 
                     connection.disconnect()
@@ -2454,9 +2338,9 @@ $message
 
                 if (
                     responseCode !=
-                    HttpURLConnection.HTTP_OK &&
+                        HttpURLConnection.HTTP_OK &&
                     responseCode !=
-                    HttpURLConnection.HTTP_PARTIAL
+                        HttpURLConnection.HTTP_PARTIAL
                 ) {
 
                     connection.disconnect()
@@ -2501,20 +2385,13 @@ $message
                                     0L
                             ) {
 
-                                output.seek(
-                                    downloaded
-                                )
+                                output.seek(downloaded)
 
                             } else {
 
-                                output.setLength(
-                                    0L
-                                )
+                                output.setLength(0L)
                             }
 
-                            /*
-                             * Smaller buffer than before.
-                             */
                             val buffer =
                                 ByteArray(
                                     64 * 1024
@@ -2529,15 +2406,9 @@ $message
                             while (true) {
 
                                 val bytesRead =
-                                    input.read(
-                                        buffer
-                                    )
+                                    input.read(buffer)
 
-                                if (
-                                    bytesRead <
-                                    0
-                                ) {
-
+                                if (bytesRead < 0) {
                                     break
                                 }
 
@@ -2565,7 +2436,7 @@ $message
                                     val percent =
                                         if (
                                             totalBytes >
-                                            0L
+                                                0L
                                         ) {
 
                                             (
@@ -2603,7 +2474,7 @@ $message
                 if (
                     !partialModelFile.exists() ||
                     partialModelFile.length() <=
-                    100_000_000L
+                        100_000_000L
                 ) {
 
                     throw IllegalStateException(
@@ -2611,10 +2482,7 @@ $message
                     )
                 }
 
-                if (
-                    modelFile.exists()
-                ) {
-
+                if (modelFile.exists()) {
                     modelFile.delete()
                 }
 
@@ -2674,8 +2542,8 @@ $message
                         "The model download stopped: " +
                             (
                                 e.message ?:
-                                "Network error"
-                            ) +
+                                    "Network error"
+                                ) +
                             ". The partial download was kept. " +
                             "Press MODEL to resume."
                     )
@@ -2689,9 +2557,7 @@ $message
     ): HttpURLConnection {
 
         return (
-            URL(
-                MODEL_URL
-            )
+            URL(MODEL_URL)
                 .openConnection()
                 as HttpURLConnection
             ).apply {
@@ -2715,10 +2581,7 @@ $message
                     "Jarvis-Android"
                 )
 
-                if (
-                    downloaded >
-                    0L
-                ) {
+                if (downloaded > 0L) {
 
                     setRequestProperty(
                         "Range",
@@ -2738,9 +2601,7 @@ $message
         type: JarvisProjectType
     ): String {
 
-        return when (
-            type
-        ) {
+        return when (type) {
 
             JarvisProjectType.WEBSITE ->
                 "WEBSITE"
@@ -2773,9 +2634,7 @@ $message
             !busy
 
         /*
-         * Preview remains disabled during local inference.
-         *
-         * This avoids WebView + llama memory use at the same time.
+         * Never run the WebView preview alongside model inference.
          */
         previewButton.isEnabled =
             !busy
@@ -2785,9 +2644,7 @@ $message
         text: String
     ) {
 
-        if (
-            ::statusText.isInitialized
-        ) {
+        if (::statusText.isInitialized) {
 
             statusText.text =
                 text
@@ -2824,9 +2681,8 @@ $message
 
         /*
          * Do not clear workspace build state here.
-         *
-         * If Android kills us while building, that state is
-         * intentionally used for recovery on the next launch.
+         * If Android kills the process during a build, recovery
+         * needs the persisted build marker on the next launch.
          */
 
         try {
@@ -2850,9 +2706,7 @@ $message
         modelLoading =
             false
 
-        if (
-            model != null
-        ) {
+        if (model != null) {
 
             Thread {
 
