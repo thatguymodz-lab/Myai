@@ -3,7 +3,8 @@ name: Build Jarvis Android V2 APK
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
   build:
@@ -24,7 +25,9 @@ jobs:
         run: |
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+          "$SDKMANAGER" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
 
       - name: Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -56,6 +59,12 @@ jobs:
 
           rootProject.name = "JarvisAndroid"
           include(":app")
+          EOF
+
+          # AndroidX fix
+          cat > gradle.properties <<'EOF'
+          android.useAndroidX=true
+          android.enableJetifier=true
           EOF
 
           cat > build.gradle.kts <<'EOF'
@@ -136,22 +145,10 @@ jobs:
                   parent="android:style/Theme.Material.NoActionBar">
 
                   <item name="android:fontFamily">sans</item>
-
-                  <item name="android:windowLightStatusBar">
-                      false
-                  </item>
-
-                  <item name="android:statusBarColor">
-                      #020811
-                  </item>
-
-                  <item name="android:navigationBarColor">
-                      #020811
-                  </item>
-
-                  <item name="android:windowLightNavigationBar">
-                      false
-                  </item>
+                  <item name="android:windowLightStatusBar">false</item>
+                  <item name="android:statusBarColor">#020811</item>
+                  <item name="android:navigationBarColor">#020811</item>
+                  <item name="android:windowLightNavigationBar">false</item>
 
               </style>
 
@@ -251,19 +248,16 @@ jobs:
                   )
               }
 
-              /*
-               * Compact starter local AI.
-               *
-               * Downloaded once after installation.
-               * The model is not bundled into every APK.
-               */
               private val modelUrl =
                   "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf?download=true"
 
               override fun onCreate(
                   savedInstanceState: Bundle?
               ) {
-                  super.onCreate(savedInstanceState)
+
+                  super.onCreate(
+                      savedInstanceState
+                  )
 
                   window.statusBarColor =
                       background
@@ -281,9 +275,14 @@ jobs:
 
                   restoreMemory()
 
-                  if (modelFile.exists()) {
+                  if (
+                      modelFile.exists()
+                  ) {
+
                       loadModel()
+
                   } else {
+
                       addMessage(
                           "JARVIS",
                           "V2 online. Tap MODEL once to download my local AI brain.",
@@ -297,7 +296,9 @@ jobs:
 
                   return GradientDrawable().apply {
 
-                      setColor(panel)
+                      setColor(
+                          panel
+                      )
 
                       cornerRadius =
                           28f
@@ -326,11 +327,6 @@ jobs:
                           )
                       }
 
-                  /*
-                   * Keep Jarvis clear of the
-                   * Samsung status bar and
-                   * navigation controls.
-                   */
                   ViewCompat
                       .setOnApplyWindowInsetsListener(
                           root
@@ -645,7 +641,9 @@ jobs:
                       params
                   )
 
-                  if (save) {
+                  if (
+                      save
+                  ) {
 
                       val type =
                           if (
@@ -668,6 +666,7 @@ jobs:
                   }
 
                   scroll.post {
+
                       scroll.fullScroll(
                           View.FOCUS_DOWN
                       )
@@ -684,7 +683,9 @@ jobs:
 
                   memoryFile
                       .readLines()
-                      .takeLast(40)
+                      .takeLast(
+                          40
+                      )
                       .forEach { line ->
 
                           val parts =
@@ -785,7 +786,9 @@ jobs:
 
                                   memoryFile
                                       .readLines()
-                                      .takeLast(12)
+                                      .takeLast(
+                                          12
+                                      )
                                       .joinToString(
                                           "\n"
                                       )
@@ -928,7 +931,9 @@ jobs:
                       }
 
                   AlertDialog
-                      .Builder(this)
+                      .Builder(
+                          this
+                      )
                       .setTitle(
                           "Jarvis Local AI"
                       )
@@ -1010,7 +1015,8 @@ jobs:
 
                                           val buffer =
                                               ByteArray(
-                                                  256 * 1024
+                                                  256 *
+                                                  1024
                                               )
 
                                           var total =
@@ -1245,11 +1251,11 @@ jobs:
               }
 
               override fun onInit(
-                  status: Int
+                  result: Int
               ) {
 
                   if (
-                      status ==
+                      result ==
                       TextToSpeech.SUCCESS
                   ) {
 
@@ -1289,7 +1295,9 @@ jobs:
                       }
 
                   AlertDialog
-                      .Builder(this)
+                      .Builder(
+                          this
+                      )
                       .setTitle(
                           "Jarvis AI Website Builder"
                       )
@@ -1479,7 +1487,9 @@ jobs:
                       }
 
                   AlertDialog
-                      .Builder(this)
+                      .Builder(
+                          this
+                      )
                       .setTitle(
                           "Jarvis Website Preview"
                       )
@@ -1496,7 +1506,6 @@ jobs:
               override fun onDestroy() {
 
                   tts.stop()
-
                   tts.shutdown()
 
                   val loadedModel =
